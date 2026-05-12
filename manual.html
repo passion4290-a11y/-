@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>멀미 저감 앰비언트 시스템 v1.0 — 운영 매뉴얼</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif;
+      background:#f5f7fa;color:#1a2332;
+      line-height:1.7;
+    }
+    /* 헤더 */
+    .hero{
+      background:linear-gradient(135deg,#006064,#00838f);
+      color:#e0f7fa;padding:40px 40px 32px;
+    }
+    .hero h1{font-size:1.6rem;font-weight:700;letter-spacing:.04em;margin-bottom:6px}
+    .hero p{font-size:.9rem;opacity:.8}
+    .version{
+      display:inline-block;margin-top:12px;
+      background:rgba(255,255,255,.15);border-radius:20px;
+      padding:4px 14px;font-size:.8rem;letter-spacing:.06em;
+    }
+
+    /* 레이아웃 */
+    .container{max-width:860px;margin:0 auto;padding:32px 24px 60px}
+
+    /* 섹션 */
+    .section{margin-bottom:36px}
+    .section-title{
+      font-size:1.05rem;font-weight:700;color:#006064;
+      border-bottom:2px solid #00838f;padding-bottom:8px;
+      margin-bottom:18px;letter-spacing:.03em;
+    }
+
+    /* 단계 카드 */
+    .step{
+      display:flex;gap:16px;
+      background:#fff;border:1px solid #e0e7ef;
+      border-radius:12px;padding:18px 20px;
+      margin-bottom:12px;
+      box-shadow:0 1px 4px rgba(0,0,0,.06);
+    }
+    .step-num{
+      flex-shrink:0;width:32px;height:32px;
+      background:#006064;color:#fff;
+      border-radius:50%;display:flex;
+      align-items:center;justify-content:center;
+      font-weight:700;font-size:.9rem;
+    }
+    .step-body{flex:1}
+    .step-title{font-weight:700;margin-bottom:6px;font-size:.95rem}
+    .step-desc{font-size:.88rem;color:#4a5568}
+
+    /* 코드 블록 */
+    .code{
+      background:#1a2332;color:#80deea;
+      font-family:'Courier New',Consolas,monospace;
+      font-size:.85rem;border-radius:8px;
+      padding:12px 16px;margin:8px 0;
+      white-space:pre-wrap;word-break:break-all;
+      letter-spacing:.02em;
+    }
+    .code .comment{color:#546e7a}
+    .code .highlight{color:#a5d6a7}
+
+    /* 정보 박스 */
+    .info{
+      border-radius:10px;padding:14px 18px;
+      margin:12px 0;font-size:.87rem;
+    }
+    .info.blue{background:#e3f2fd;border-left:4px solid #1976d2;color:#0d47a1}
+    .info.green{background:#e8f5e9;border-left:4px solid #388e3c;color:#1b5e20}
+    .info.yellow{background:#fffde7;border-left:4px solid #f9a825;color:#6d4c00}
+    .info.red{background:#ffebee;border-left:4px solid #c62828;color:#7f0000}
+
+    /* 역할 카드 */
+    .role-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .role-card{
+      background:#fff;border:1px solid #e0e7ef;
+      border-radius:12px;padding:18px;text-align:center;
+      box-shadow:0 1px 4px rgba(0,0,0,.06);
+    }
+    .role-icon{font-size:2rem;margin-bottom:8px}
+    .role-title{font-weight:700;font-size:.9rem;margin-bottom:6px;color:#006064}
+    .role-desc{font-size:.8rem;color:#718096;line-height:1.5}
+    .role-url{
+      margin-top:10px;background:#f0fdfa;
+      border:1px solid #b2dfdb;border-radius:6px;
+      padding:6px 8px;font-size:.75rem;
+      font-family:'Courier New',monospace;color:#00695c;
+      word-break:break-all;
+    }
+
+    /* 구조도 */
+    .arch{
+      background:#fff;border:1px solid #e0e7ef;
+      border-radius:12px;padding:20px;
+      font-family:'Courier New',monospace;
+      font-size:.82rem;color:#2d3748;
+      line-height:2;
+    }
+
+    /* 문제해결 테이블 */
+    table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+    th{background:#006064;color:#fff;padding:12px 16px;font-size:.85rem;text-align:left}
+    td{padding:12px 16px;font-size:.85rem;border-bottom:1px solid #e0e7ef;vertical-align:top}
+    tr:last-child td{border-bottom:none}
+    tr:nth-child(even) td{background:#f9fbfc}
+
+    /* 체크리스트 */
+    .checklist{list-style:none;padding:0}
+    .checklist li{
+      padding:8px 0 8px 28px;
+      position:relative;font-size:.88rem;
+      border-bottom:1px solid #edf2f7;
+    }
+    .checklist li::before{
+      content:'☐';position:absolute;left:0;
+      color:#00838f;font-size:1rem;
+    }
+
+    /* 키워드 강조 */
+    kbd{
+      background:#edf2f7;border:1px solid #cbd5e0;
+      border-radius:4px;padding:2px 7px;
+      font-size:.82rem;font-family:monospace;color:#2d3748;
+    }
+    strong{color:#006064}
+
+    @media print{
+      body{background:#fff}
+      .hero{background:#006064 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .role-card,.step,.arch,table{box-shadow:none}
+    }
+    @media(max-width:640px){
+      .role-grid{grid-template-columns:1fr}
+      .hero{padding:24px}
+    }
+  </style>
+</head>
+<body>
+
+<!-- 헤더 -->
+<div class="hero">
+  <h1>전기버스 멀미 저감 앰비언트 시스템</h1>
+  <p>사이언(Cyan) 계열 시각 자극을 통해 전정기관과 시각 정보의 괴리를 최소화하는 실험 시스템</p>
+  <div class="version">Version 1.0 &nbsp;·&nbsp; 운영 매뉴얼</div>
+</div>
+
+<div class="container">
+
+  <!-- 시스템 구조 -->
+  <div class="section">
+    <div class="section-title">시스템 구조</div>
+    <div class="arch">
+[휴대폰] 가속도 센서 수집
+    │  WebSocket (wss://)
+    ▼
+[노트북] Python 서버 (포트 8765)
+    │  칼만 필터 → 색상/흐름 파라미터 계산
+    │  Cloudflare Tunnel (외부 HTTPS 주소 생성)
+    ▼
+[태블릿] 앰비언트 디스플레이
+    │  · 사이언 배경 호흡 (6.5초 주기)
+    │  · 좌우 이동 → 색조(Hue) 변화 + 엣지 글로우
+    │  · 기울기 연동 수평선 (시각 기준선)
+    │  · 중앙 고정점 (Focus Anchor)
+[컴퓨터] 모니터링 대시보드 → CSV 다운로드
+    </div>
+
+    <div class="info blue" style="margin-top:14px">
+      <strong>왜 Cloudflare Tunnel이 필요한가?</strong><br>
+      iPhone은 보안 정책상 <strong>HTTPS</strong> 환경에서만 기기 센서(가속도계) 접근을 허용합니다.
+      Cloudflare Tunnel이 로컬 서버에 자동으로 HTTPS 주소를 부여합니다.
+    </div>
+  </div>
+
+  <!-- 역할별 접속 주소 -->
+  <div class="section">
+    <div class="section-title">기기별 역할 및 접속 주소</div>
+    <div class="role-grid">
+      <div class="role-card">
+        <div class="role-icon">📱</div>
+        <div class="role-title">휴대폰</div>
+        <div class="role-desc">차량 가속도 센서 수집 후 서버로 전송</div>
+        <div class="role-url">[터널주소]/phone</div>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">🖥️</div>
+        <div class="role-title">태블릿</div>
+        <div class="role-desc">앰비언트 시각 효과 표시 (탑승자 향)</div>
+        <div class="role-url">[터널주소]/tablet</div>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">💻</div>
+        <div class="role-title">모니터링 PC</div>
+        <div class="role-desc">센서 수치 실시간 확인 + CSV 기록</div>
+        <div class="role-url">localhost:8765/monitor</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 사전 준비 -->
+  <div class="section">
+    <div class="section-title">사전 준비 (최초 1회)</div>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">Python 설치 확인</div>
+        <div class="step-desc">
+          cmd 창을 열고 아래 명령어 입력. <code>Python 3.x.x</code> 가 뜨면 OK.
+        </div>
+        <div class="code">python --version</div>
+        <div class="info yellow">Python이 없으면 python.org에서 설치. 설치 시 <strong>"Add Python to PATH"</strong> 반드시 체크.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">프로젝트 파일 다운로드</div>
+        <div class="step-desc">
+          GitHub 저장소 → branch: <strong>claude/car-motion-ambient-system-Fum6y</strong> 선택<br>
+          초록색 <strong>Code → Download ZIP</strong> 클릭 후 바탕화면에 압축 해제
+        </div>
+        <div class="info green">압축 해제 후 폴더 안에 <strong>server / phone / tablet / monitor</strong> 폴더가 있어야 합니다.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">cloudflared 다운로드</div>
+        <div class="step-desc">
+          아래 파일을 다운받아 바탕화면에 놓기 (1회만)
+        </div>
+        <div class="code">https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">패키지 설치 (1회만)</div>
+        <div class="step-desc">
+          <strong>윈도우 키 + R → cmd → 엔터</strong> 후 아래 입력. (폴더명은 실제 압축 해제된 이름으로)
+        </div>
+        <div class="code"><span class="comment">rem 예시: 폴더 이름이 main 인 경우</span>
+cd %USERPROFILE%\Desktop\main\--claude-car-motion-ambient-system-Fum6y\server
+pip install -r requirements.txt</div>
+        <div class="info green"><strong>Successfully installed</strong> 가 뜨면 완료. 다음부터는 이 단계 생략.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 구동 순서 -->
+  <div class="section">
+    <div class="section-title">매일 구동 순서</div>
+
+    <div class="info blue">
+      cmd 창을 <strong>2개</strong> 열어야 합니다. 두 창 모두 실험이 끝날 때까지 닫으면 안 됩니다.
+    </div>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">cmd 창 1 — Python 서버 실행</div>
+        <div class="step-desc"><strong>윈도우 키 + R → cmd → 엔터</strong></div>
+        <div class="code"><span class="comment">rem 폴더명을 실제 이름으로 변경</span>
+cd %USERPROFILE%\Desktop\<span class="highlight">폴더명</span>\--claude-car-motion-ambient-system-Fum6y\server
+
+python -m uvicorn main:app --host 0.0.0.0 --port 8765</div>
+        <div class="info green">아래 문구가 뜨면 성공. <strong>이 창을 닫지 마세요.</strong><br>
+        <code>Uvicorn running on http://0.0.0.0:8765</code></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">cmd 창 2 — Cloudflare Tunnel 실행</div>
+        <div class="step-desc"><strong>새 cmd 창</strong>을 열고 입력</div>
+        <div class="code">cd %USERPROFILE%\Desktop
+
+cloudflared-windows-amd64.exe tunnel --url http://localhost:8765</div>
+        <div class="info green">
+          아래처럼 <strong>https 주소</strong>가 뜨면 성공. 이 주소를 메모하세요. <strong>이 창도 닫지 마세요.</strong><br>
+          <code>https://xxxx-xxxx-xxxx.trycloudflare.com</code>
+        </div>
+        <div class="info yellow">
+          ⚠️ <strong>주소는 실행할 때마다 바뀝니다.</strong> 매번 새로 확인해야 합니다.
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">모니터링 PC — 대시보드 열기</div>
+        <div class="step-desc">노트북 Chrome / Edge에서 접속</div>
+        <div class="code">http://localhost:8765/monitor</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <div class="step-title">태블릿 — 앰비언트 화면 열기</div>
+        <div class="step-desc">브라우저 주소창에 입력 (xxxx 부분은 2단계에서 메모한 주소)</div>
+        <div class="code">https://xxxx-xxxx-xxxx.trycloudflare.com/tablet</div>
+        <div class="info green">검은 화면이 뜨고 자동으로 연결됩니다. 별도 입력 불필요.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <div class="step-title">휴대폰 (iPhone) — 센서 연결</div>
+        <div class="step-desc">Safari 주소창에 입력</div>
+        <div class="code">https://xxxx-xxxx-xxxx.trycloudflare.com/phone</div>
+        <div class="step-desc" style="margin-top:10px">
+          1. 입력창에 주소 자동 입력 확인<br>
+          2. <strong>"탭하여 시작"</strong> 버튼 누르기<br>
+          3. <strong>"동작 및 방향 접근 허용"</strong> 팝업 → <strong>허용</strong>
+        </div>
+        <div class="info green">상태 표시줄에 <strong>"연결됨"</strong> 이 뜨고 센서 수치가 움직이면 성공.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <div class="step-title">연결 최종 확인</div>
+        <div class="step-desc">노트북 cmd 창 1 (Python 서버)에 아래처럼 뜨면 모두 정상 연결된 것입니다.</div>
+        <div class="code"><span class="highlight">[+] tablet 연결됨. phones=0, tablets=1
+[+] phone  연결됨. phones=1, tablets=1</span></div>
+        <div class="step-desc" style="margin-top:8px">
+          모니터링 대시보드 우측 상단에도 <strong>서버 · 휴대폰 · 태블릿</strong> 인디케이터가 파랗게 켜집니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 앰비언트 동작 설명 -->
+  <div class="section">
+    <div class="section-title">앰비언트 시각 효과 설명</div>
+    <table>
+      <tr><th>차량 상태</th><th>태블릿 화면 변화</th><th>멀미 저감 원리</th></tr>
+      <tr>
+        <td><strong>정지 / 등속</strong></td>
+        <td>사이언(187°) 기본색, 6.5초 주기 호흡 효과</td>
+        <td>0.15Hz 맥동이 부교감신경 활성화 → 심박 안정</td>
+      </tr>
+      <tr>
+        <td><strong>좌회전</strong></td>
+        <td>색조가 민트(175°)로 이동, 우측 엣지 강조, 파티클 우→좌 흐름</td>
+        <td>시각 정보가 전정기관 신호와 일치 → 괴리 감소</td>
+      </tr>
+      <tr>
+        <td><strong>우회전</strong></td>
+        <td>색조가 청색(200°)으로 이동, 좌측 엣지 강조, 파티클 좌→우 흐름</td>
+        <td>동일</td>
+      </tr>
+      <tr>
+        <td><strong>가속</strong></td>
+        <td>밝기(Lightness) 감소 → 더 깊고 차분한 톤</td>
+        <td>시각적 안정감 제공, 뇌의 예측 오류 감소</td>
+      </tr>
+      <tr>
+        <td><strong>감속 / 제동</strong></td>
+        <td>밝기 증가 → 더 밝은 톤</td>
+        <td>감속 예고 시각화</td>
+      </tr>
+      <tr>
+        <td><strong>기울기</strong></td>
+        <td>수평선이 차량 기울기 반대로 미세 회전</td>
+        <td>인공 시각 기준선 → 공간 지각 안정</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- 실험 전 체크리스트 -->
+  <div class="section">
+    <div class="section-title">실험 전 체크리스트</div>
+    <ul class="checklist">
+      <li>노트북, 태블릿, 휴대폰 모두 충분히 충전됨</li>
+      <li>3기기 모두 동일한 Wi-Fi에 연결됨</li>
+      <li>cmd 창 1 — Python 서버 실행 확인 (Uvicorn running)</li>
+      <li>cmd 창 2 — Cloudflare Tunnel 주소 확인 및 메모</li>
+      <li>태블릿: /tablet 접속 후 자동 연결 확인</li>
+      <li>휴대폰: /phone 접속 후 센서 권한 허용 및 연결 확인</li>
+      <li>모니터링 PC: /monitor 에서 모든 인디케이터 파란색 확인</li>
+      <li>휴대폰을 흔들었을 때 태블릿 색상이 변하는지 확인</li>
+      <li>CSV 다운로드 버튼 동작 확인 (데이터 기록용)</li>
+    </ul>
+  </div>
+
+  <!-- 문제 해결 -->
+  <div class="section">
+    <div class="section-title">문제 해결</div>
+    <table>
+      <tr><th>증상</th><th>원인</th><th>해결</th></tr>
+      <tr>
+        <td>서버 cmd에서 "Could not import module main"</td>
+        <td>server 폴더 밖에서 실행</td>
+        <td><code>cd ... \server</code> 후 다시 실행</td>
+      </tr>
+      <tr>
+        <td>태블릿 / 휴대폰 접속 안 됨</td>
+        <td>Cloudflare Tunnel이 꺼짐</td>
+        <td>cmd 창 2 확인 후 없으면 cloudflared 재실행</td>
+      </tr>
+      <tr>
+        <td>Error 1033</td>
+        <td>Cloudflare가 서버를 못 찾음</td>
+        <td>Python 서버 먼저 켜고 cloudflared 재실행</td>
+      </tr>
+      <tr>
+        <td>휴대폰 센서값이 0.00 으로만 표시</td>
+        <td>iOS 센서 권한 미허용</td>
+        <td>Safari 새로고침 후 버튼 누를 때 팝업에서 "허용"</td>
+      </tr>
+      <tr>
+        <td>모니터에 "phones=0" 으로 표시</td>
+        <td>휴대폰 연결 안 됨</td>
+        <td>휴대폰 페이지 새로고침 후 재연결</td>
+      </tr>
+      <tr>
+        <td>Cloudflare 주소가 이전과 다름</td>
+        <td>cloudflared 재시작 시 주소 변경됨</td>
+        <td>새 주소를 태블릿·휴대폰에 다시 입력</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- 실험 종료 -->
+  <div class="section">
+    <div class="section-title">실험 종료 순서</div>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <div class="step-title">데이터 저장</div>
+        <div class="step-desc">모니터링 페이지(<code>localhost:8765/monitor</code>)에서 <strong>"데이터 CSV 다운로드"</strong> 버튼 클릭</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <div class="step-title">서버 종료</div>
+        <div class="step-desc">Python 서버 cmd 창(창 1) → <kbd>Ctrl</kbd> + <kbd>C</kbd></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <div class="step-title">Cloudflare Tunnel 종료</div>
+        <div class="step-desc">cloudflared cmd 창(창 2) → <kbd>Ctrl</kbd> + <kbd>C</kbd></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info blue" style="margin-top:8px;font-size:.85rem">
+    <strong>Version 1.0</strong> &nbsp;·&nbsp; 전기버스 멀미 저감 앰비언트 시스템<br>
+    문의 및 피드백은 실험 담당자에게 전달해 주세요.
+  </div>
+
+</div>
+</body>
+</html>

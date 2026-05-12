@@ -273,6 +273,10 @@ async def serve_phone():
 async def serve_monitor():
     return FileResponse(os.path.join(BASE_DIR, "monitor", "index.html"), headers=NO_CACHE)
 
+@app.get("/manual")
+async def serve_manual():
+    return FileResponse(os.path.join(BASE_DIR, "manual.html"), headers=NO_CACHE)
+
 @app.get("/")
 async def serve_index():
     html = """<!DOCTYPE html>
