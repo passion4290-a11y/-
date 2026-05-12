@@ -22,6 +22,12 @@ app = FastAPI(title="Car Motion Ambient Server")
 # HTML 파일 서빙 경로 (server/ 기준 상위 폴더)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+@app.middleware("http")
+async def ngrok_skip_warning(request, call_next):
+    response = await call_next(request)
+    response.headers["ngrok-skip-browser-warning"] = "true"
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

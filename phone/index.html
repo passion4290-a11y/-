@@ -429,6 +429,15 @@
       if (ws) { ws.close(); ws = null; }
       clearInterval(sendInterval);
 
+      // ngrok 세션 먼저 열기 (경고 페이지 우회)
+      if (location.protocol === 'https:') {
+        try {
+          await fetch(location.protocol + '//' + addr + '/health', {
+            headers: { 'ngrok-skip-browser-warning': 'true' }
+          });
+        } catch (_) {}
+      }
+
       // https(ngrok 등) 환경이면 wss://, 로컬이면 ws://
       const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
       const url = protocol + addr + '/ws/phone';
