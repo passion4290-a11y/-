@@ -658,7 +658,8 @@
     serverAddr = addr;
     setHUD('warn', '연결 중...', '—');
 
-    ws = new WebSocket('ws://' + addr + '/ws/tablet');
+    const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    ws = new WebSocket(protocol + addr + '/ws/tablet');
 
     ws.onopen = () => {
       setHUD('active', '연결됨', '신호 대기');
