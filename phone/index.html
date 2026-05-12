@@ -483,9 +483,19 @@
 
     document.getElementById('connectBtn').addEventListener('click', connect);
 
-    // 페이지를 서빙한 서버로 자동 주소 채우기
+    // 페이지 로드 시 자동 연결 (주소 입력 불필요)
     window.addEventListener('load', () => {
-      document.getElementById('serverAddr').value = location.host;
+      const addr = location.host;
+      document.getElementById('serverAddr').value = addr;
+
+      // iOS는 반드시 버튼 클릭(사용자 제스처) 후에만 센서 권한 요청 가능
+      // → 자동 연결 대신 버튼만 눌러도 되도록 안내 표시
+      if (isIOS) {
+        document.getElementById('connectBtn').textContent = '탭하여 시작';
+      } else {
+        // Android 등은 바로 자동 연결
+        setTimeout(connect, 500);
+      }
     });
   </script>
 </body>
