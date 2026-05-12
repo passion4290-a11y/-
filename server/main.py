@@ -13,8 +13,14 @@ from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
 
 app = FastAPI(title="Car Motion Ambient Server")
+
+# HTML 파일 서빙 경로 (server/ 기준 상위 폴더)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 app.add_middleware(
     CORSMiddleware,
@@ -244,6 +250,50 @@ async def health():
         "phones": len(manager.phones),
         "tablets": len(manager.tablets),
     }
+
+
+# ──────────────────────────────────────────────
+# HTML 파일 서빙 (태블릿/휴대폰 브라우저 접속용)
+# ──────────────────────────────────────────────
+@app.get("/tablet")
+async def serve_tablet():
+    return FileResponse(os.path.join(BASE_DIR, "tablet", "index.html"))
+
+@app.get("/phone")
+async def serve_phone():
+    return FileResponse(os.path.join(BASE_DIR, "phone", "index.html"))
+
+@app.get("/")
+async def serve_index():
+    html = """<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>앰비언트 시스템</title>
+  <style>
+    body{font-family:-apple-system,sans-serif;background:#030a0e;color:#b2ebf2;
+         display:flex;flex-direction:column;align-items:center;justify-content:center;
+         height:100vh;gap:20px;margin:0}
+    h1{color:#4dd0e1;font-size:1.3rem;letter-spacing:.06em}
+    a{display:block;padding:14px 40px;border-radius:12px;text-decoration:none;
+      font-weight:600;font-size:1rem;text-align:center;transition:transform .15s}
+    a:active{transform:scale(.97)}
+    .tablet{background:linear-gradient(135deg,#006064,#00838f);color:#e0f7fa}
+    .phone {background:linear-gradient(135deg,#1a3040,#0d4a5a);color:#80cbc4;
+            border:1px solid #1e3a4a}
+    small{color:#37474f;font-size:.8rem}
+  </style>
+</head>
+<body>
+  <h1>멀미 저감 앰비언트 시스템</h1>
+  <a class="tablet" href="/tablet">태블릿 화면 열기</a>
+  <a class="phone"  href="/phone">휴대폰 센서 연결</a>
+  <small>모든 기기에서 동일한 Wi-Fi에 연결하세요</small>
+</body>
+</html>"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(html)
 
 
 if __name__ == "__main__":
