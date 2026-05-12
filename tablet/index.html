@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Ambient — 멀미 저감 시스템</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* 기본 사이언 팔레트 */
+      --cyan-h: 187;
+      --cyan-s: 95%;
+      --cyan-l: 32%;
+
+      --bg:         #030a0e;
+      --surface:    rgba(13, 27, 36, 0.85);
+      --border:     rgba(0, 188, 212, 0.15);
+      --text:       #b2ebf2;
+      --text-dim:   #37474f;
+      --accent:     hsl(var(--cyan-h), var(--cyan-s), var(--cyan-l));
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+    }
+
+    /* ═══════════════════════════════════════
+       레이어 구조
+       1. flow-canvas   — 흐름 배경 (Canvas)
+       2. ambient-edges — 상하좌우 앰비언트 글로우
+       3. horizon-layer — 수평선 + 기울기 반응
+       4. focus-layer   — 중앙 고정점
+       5. ui-overlay    — 상태 정보 HUD
+    ═══════════════════════════════════════ */
+
+    /* 흐름 배경 캔버스 */
+    #flowCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100%; height: 100%;
+      opacity: 0.45;
+    }
+
+    /* 앰비언트 엣지 글로우 */
+    .ambient-edge {
+      position: fixed;
+      pointer-events: none;
+      transition: opacity 0.3s ease, background 0.3s ease;
+    }
+
+    #edgeTop {
+      top: 0; left: 0; right: 0;
+      height: 18%;
+      background: radial-gradient(ellipse 80% 100% at 50% 0%,
+        hsla(var(--cyan-h), var(--cyan-s), var(--cyan-l), 0.55) 0%,
+        transparent 100%);
+    }
+
+    #edgeBottom {
+      bottom: 0; left: 0; right: 0;
+      height: 18%;
+      background: radial-gradient(ellipse 80% 100% at 50% 100%,
+        hsla(var(--cyan-h), var(--cyan-s), var(--cyan-l), 0.55) 0%,
+        transparent 100%);
+    }
+
+    #edgeLeft {
+      left: 0; top: 0; bottom: 0;
+      width: 12%;
+      background: radial-gradient(ellipse 100% 60% at 0% 50%,
+        hsla(175, 90%, 40%, 0.5) 0%,
+        transparent 100%);
+      opacity: 0;
+    }
+
+    #edgeRight {
+      right: 0; top: 0; bottom: 0;
+      width: 12%;
+      background: radial-gradient(ellipse 100% 60% at 100% 50%,
+        hsla(200, 95%, 40%, 0.5) 0%,
+        transparent 100%);
+      opacity: 0;
+    }
+
+    /* 수평선 레이어 */
+    #horizonLayer {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      transition: transform 0.25s ease-out;
+    }
+
+    .horizon-line {
+      position: absolute;
+      width: 75%;
+      height: 1.5px;
+      background: linear-gradient(
+        to right,
+        transparent 0%,
+        hsla(187, 90%, 65%, 0.6) 20%,
+        hsla(187, 90%, 75%, 0.85) 50%,
+        hsla(187, 90%, 65%, 0.6) 80%,
+        transparent 100%
+      );
+      filter: blur(0.5px);
+    }
+
+    /* 수평선 보조 라인 (위아래 희미하게) */
+    .horizon-line-sub {
+      position: absolute;
+      width: 50%;
+      height: 1px;
+      background: linear-gradient(
+        to right,
+        transparent 0%,
+        hsla(187, 80%, 60%, 0.25) 30%,
+        hsla(187, 80%, 60%, 0.25) 70%,
+        transparent 100%
+      );
+    }
+
+    .horizon-line-sub.above { transform: translateY(-28px); }
+    .horizon-line-sub.below { transform: translateY( 28px); }
+
+    /* 중앙 고정점 */
+    #focusLayer {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .focus-dot {
+      position: relative;
+      width: 10px;
+      height: 10px;
+    }
+
+    .focus-core {
+      width: 10px; height: 10px;
+      background: hsl(187, 100%, 80%);
+      border-radius: 50%;
+      box-shadow: 0 0 8px 2px hsla(187, 100%, 75%, 0.9);
+    }
+
+    .focus-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid hsla(187, 90%, 70%, 0.4);
+      animation: ring-pulse 3.2s ease-in-out infinite;
+    }
+
+    .focus-ring.r1 { width: 30px;  height: 30px;  top: -10px; left: -10px; animation-delay: 0s; }
+    .focus-ring.r2 { width: 58px;  height: 58px;  top: -24px; left: -24px; animation-delay: 0.8s; }
+    .focus-ring.r3 { width: 90px;  height: 90px;  top: -40px; left: -40px; animation-delay: 1.6s; }
+
+    @keyframes ring-pulse {
+      0%   { opacity: 0.7; transform: scale(0.92); }
+      50%  { opacity: 0.2; transform: scale(1.06); }
+      100% { opacity: 0.7; transform: scale(0.92); }
+    }
+
+    /* 방향 화살표 (이동 방향 힌트) */
+    .dir-arrow {
+      position: absolute;
+      font-size: 1.1rem;
+      color: hsla(187, 90%, 75%, 0);
+      transition: color 0.3s ease, transform 0.3s ease;
+      user-select: none;
+    }
+
+    .dir-arrow.left  { left:  -52px; top: 50%; transform: translateY(-50%); }
+    .dir-arrow.right { right: -52px; top: 50%; transform: translateY(-50%); }
+
+    /* HUD 오버레이 */
+    #hud {
+      position: fixed;
+      top: 16px; right: 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      pointer-events: none;
+    }
+
+    .hud-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .hud-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #263238;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+
+    .hud-dot.active { background: #26c6da; box-shadow: 0 0 6px #26c6da; }
+    .hud-dot.warn   { background: #ffd54f; }
+    .hud-dot.error  { background: #ef5350; }
+
+    .hud-label {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    /* 연결 설정 패널 (시작 화면) */
+    #setupPanel {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 10, 14, 0.96);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      z-index: 100;
+      transition: opacity 0.5s ease;
+    }
+
+    #setupPanel.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .setup-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #4dd0e1;
+      letter-spacing: 0.08em;
+    }
+
+    .setup-sub {
+      font-size: 0.85rem;
+      color: #546e7a;
+      text-align: center;
+      max-width: 320px;
+      line-height: 1.5;
+    }
+
+    .setup-card {
+      background: #0d1b24;
+      border: 1px solid #1a3040;
+      border-radius: 16px;
+      padding: 22px 24px;
+      width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .setup-card label {
+      font-size: 0.78rem;
+      color: #80cbc4;
+      letter-spacing: 0.04em;
+    }
+
+    .setup-card input {
+      width: 100%;
+      background: #0a1520;
+      border: 1px solid #1e3a4a;
+      border-radius: 8px;
+      padding: 11px 13px;
+      color: #e0f7fa;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    .setup-card input:focus { border-color: #00bcd4; }
+
+    .setup-btn {
+      padding: 13px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #006064, #00838f);
+      color: #e0f7fa;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: transform 0.15s;
+    }
+
+    .setup-btn:active { transform: scale(0.97); }
+
+    /* 데이터 로깅 표시 */
+    #dataLog {
+      position: fixed;
+      bottom: 14px;
+      left: 16px;
+      font-size: 0.68rem;
+      font-family: 'Courier New', monospace;
+      color: rgba(0, 188, 212, 0.35);
+      pointer-events: none;
+      line-height: 1.6;
+    }
+
+    /* 브리딩 오버레이 (전체 화면 밝기 펄스) */
+    #breathOverlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse 60% 50% at 50% 50%,
+        hsla(187, 95%, 32%, 0.08),
+        transparent 70%);
+      animation: breath 6.5s ease-in-out infinite;
+    }
+
+    @keyframes breath {
+      0%, 100% { opacity: 0.6; }
+      50%       { opacity: 1.0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 흐름 배경 캔버스 -->
+  <canvas id="flowCanvas"></canvas>
+
+  <!-- 브리딩 오버레이 -->
+  <div id="breathOverlay"></div>
+
+  <!-- 앰비언트 엣지 글로우 -->
+  <div class="ambient-edge" id="edgeTop"></div>
+  <div class="ambient-edge" id="edgeBottom"></div>
+  <div class="ambient-edge" id="edgeLeft"></div>
+  <div class="ambient-edge" id="edgeRight"></div>
+
+  <!-- 수평선 레이어 -->
+  <div id="horizonLayer">
+    <div class="horizon-line-sub above"></div>
+    <div class="horizon-line"></div>
+    <div class="horizon-line-sub below"></div>
+  </div>
+
+  <!-- 중앙 고정점 -->
+  <div id="focusLayer">
+    <div class="focus-dot">
+      <div class="focus-ring r1"></div>
+      <div class="focus-ring r2"></div>
+      <div class="focus-ring r3"></div>
+      <div class="focus-core"></div>
+      <div class="dir-arrow left"  id="arrowLeft">◀</div>
+      <div class="dir-arrow right" id="arrowRight">▶</div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-row">
+      <span class="hud-label" id="hudStatus">연결 대기</span>
+      <div class="hud-dot" id="hudDot"></div>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label" id="hudState">—</span>
+    </div>
+  </div>
+
+  <!-- 데이터 로그 -->
+  <div id="dataLog" id="dataLog">
+    lateral: 0.0000 | forward: 0.0000<br>
+    dir: neutral | state: cruise<br>
+    hsl: 187 / 95% / 32%
+  </div>
+
+  <!-- 연결 설정 패널 -->
+  <div id="setupPanel">
+    <div class="setup-title">멀미 저감 앰비언트</div>
+    <div class="setup-sub">전기버스 탑승자용 시각 안정화 시스템<br>서버 주소를 입력하여 시작하세요</div>
+    <div class="setup-card">
+      <label>서버 IP:PORT</label>
+      <input id="serverAddr" type="text" value="192.168.0.100:8765" placeholder="192.168.x.x:8765" />
+      <button class="setup-btn" id="startBtn">시작</button>
+    </div>
+  </div>
+
+  <script>
+  // ════════════════════════════════════════════════════════
+  // 흐름 배경 렌더러 (Canvas Particle Flow)
+  // ════════════════════════════════════════════════════════
+  const canvas = document.getElementById('flowCanvas');
+  const ctx    = canvas.getContext('2d');
+
+  let W = 0, H = 0;
+  let particles = [];
+
+  const PARTICLE_COUNT = 90;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    initParticles();
+  }
+
+  function initParticles() {
+    particles = Array.from({ length: PARTICLE_COUNT }, () => createParticle(true));
+  }
+
+  function createParticle(randomY = false) {
+    return {
+      x:     Math.random() * W,
+      y:     randomY ? Math.random() * H : (Math.random() > 0.5 ? -10 : H + 10),
+      vx:    (Math.random() - 0.5) * 0.3,
+      vy:    (Math.random() * 0.4 + 0.15),
+      alpha: Math.random() * 0.4 + 0.1,
+      r:     Math.random() * 1.8 + 0.5,
+      hue:   182 + Math.random() * 16,  // 182~198° 사이 랜덤
+    };
+  }
+
+  // flowOffset: 이동 방향 반대로 흐름 가속
+  let flowOffset = 0;   // -1(좌) ~ 0 ~ 1(우) → 파티클 x 속도 조절
+  let currentHue = 187;
+  let currentSat = 95;
+  let currentLit = 32;
+
+  function drawParticles() {
+    ctx.clearRect(0, 0, W, H);
+
+    for (const p of particles) {
+      // 흐름 방향: flowOffset * 1.5 추가 속도
+      p.x += p.vx + flowOffset * 1.2;
+      p.y += p.vy;
+
+      // 화면 밖 → 재생성
+      if (p.y > H + 10 || p.y < -10 || p.x < -10 || p.x > W + 10) {
+        Object.assign(p, createParticle(false));
+        p.hue = currentHue + (Math.random() - 0.5) * 14;
+      }
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${p.hue}, ${currentSat}%, ${currentLit + 20}%, ${p.alpha})`;
+      ctx.fill();
+    }
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ════════════════════════════════════════════════════════
+  // 앰비언트 상태 + 보간 (Lerp)
+  // ════════════════════════════════════════════════════════
+  const state = {
+    hue:       187,
+    sat:       95,
+    lit:       32,
+    lateral:   0,
+    forward:   0,
+    tiltLR:    0,
+    tiltFB:    0,
+    direction: 'neutral',
+    motion:    'cruise',
+    flowOff:   0,
+  };
+
+  const target = { hue: 187, sat: 95, lit: 32, lateral: 0, forward: 0, flowOff: 0, tiltLR: 0 };
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  // 색상 각도 최단경로 보간
+  function lerpHue(a, b, t) {
+    let diff = b - a;
+    if (diff >  180) diff -= 360;
+    if (diff < -180) diff += 360;
+    return a + diff * t;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // 엣지 글로우 업데이트
+  // ════════════════════════════════════════════════════════
+  const edgeLeft  = document.getElementById('edgeLeft');
+  const edgeRight = document.getElementById('edgeRight');
+  const edgeTop   = document.getElementById('edgeTop');
+  const edgeBottom= document.getElementById('edgeBottom');
+
+  function updateEdges(lateral, forward, h, s, l) {
+    const abslat = Math.abs(lateral);
+
+    // 좌우 엣지: 이동 반대쪽을 강조 (vestibular congruence)
+    if (lateral < 0) {
+      // 좌 이동 → 우측 글로우 (시각적 앵커)
+      edgeLeft.style.opacity  = '0';
+      edgeRight.style.opacity = String(abslat * 0.85 + 0.1);
+    } else if (lateral > 0) {
+      edgeLeft.style.opacity  = String(abslat * 0.85 + 0.1);
+      edgeRight.style.opacity = '0';
+    } else {
+      edgeLeft.style.opacity  = '0.05';
+      edgeRight.style.opacity = '0.05';
+    }
+
+    // 상하 엣지: 기본 호흡 + 가감속 반응
+    const baseOpacity = 0.6;
+    const fwdBoost = Math.abs(forward) * 0.3;
+    const topLit = Math.max(28, Math.min(48, l + 6));
+    edgeTop.style.background = `radial-gradient(ellipse 80% 100% at 50% 0%,
+      hsla(${h}, ${s}%, ${topLit}%, ${baseOpacity + fwdBoost}) 0%,
+      transparent 100%)`;
+    edgeBottom.style.background = `radial-gradient(ellipse 80% 100% at 50% 100%,
+      hsla(${h}, ${s}%, ${topLit}%, ${baseOpacity + fwdBoost * 0.7}) 0%,
+      transparent 100%)`;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // 수평선 기울기 업데이트
+  // ════════════════════════════════════════════════════════
+  const horizonLayer = document.getElementById('horizonLayer');
+
+  function updateHorizon(tiltLR, tiltFB) {
+    // tiltLR: 좌우 기울기 (gamma, 최대 ±30° 정도 반응)
+    // 차량이 우로 기울면 수평선은 약간 좌로 기울어야 상대적으로 수평 유지
+    const angle = -tiltLR * 0.35;  // 감쇠 계수 0.35
+    const clampedAngle = Math.max(-12, Math.min(12, angle));
+    horizonLayer.style.transform = `rotate(${clampedAngle}deg)`;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // 방향 화살표 업데이트
+  // ════════════════════════════════════════════════════════
+  const arrowLeft  = document.getElementById('arrowLeft');
+  const arrowRight = document.getElementById('arrowRight');
+
+  function updateArrows(lateral) {
+    if (lateral < -0.15) {
+      const a = Math.min(0.9, Math.abs(lateral) * 1.5);
+      arrowLeft.style.color  = `hsla(175, 90%, 75%, ${a})`;
+      arrowRight.style.color = 'hsla(187, 90%, 75%, 0)';
+    } else if (lateral > 0.15) {
+      const a = Math.min(0.9, Math.abs(lateral) * 1.5);
+      arrowRight.style.color = `hsla(200, 95%, 75%, ${a})`;
+      arrowLeft.style.color  = 'hsla(187, 90%, 75%, 0)';
+    } else {
+      arrowLeft.style.color  = 'hsla(187, 90%, 75%, 0)';
+      arrowRight.style.color = 'hsla(187, 90%, 75%, 0)';
+    }
+  }
+
+  // ════════════════════════════════════════════════════════
+  // CSS 변수 업데이트 (배경 전체 색상)
+  // ════════════════════════════════════════════════════════
+  function updateCSSVars(h, s, l) {
+    const root = document.documentElement;
+    root.style.setProperty('--cyan-h', h);
+    root.style.setProperty('--cyan-s', s + '%');
+    root.style.setProperty('--cyan-l', l + '%');
+  }
+
+  // ════════════════════════════════════════════════════════
+  // 메인 애니메이션 루프
+  // ════════════════════════════════════════════════════════
+  const LERP_COLOR  = 0.06;  // 색상 전환 속도 (낮을수록 부드러움)
+  const LERP_MOTION = 0.12;  // 모션 전환 속도
+
+  function animationLoop() {
+    // 보간
+    state.hue     = lerpHue(state.hue,   target.hue,     LERP_COLOR);
+    state.sat     = lerp(state.sat,       target.sat,     LERP_COLOR);
+    state.lit     = lerp(state.lit,       target.lit,     LERP_COLOR);
+    state.lateral = lerp(state.lateral,   target.lateral, LERP_MOTION);
+    state.forward = lerp(state.forward,   target.forward, LERP_MOTION);
+    state.flowOff = lerp(state.flowOff,   target.flowOff, LERP_MOTION);
+    state.tiltLR  = lerp(state.tiltLR,   target.tiltLR,  0.08);
+
+    const h = Math.round(state.hue);
+    const s = Math.round(state.sat);
+    const l = Math.round(state.lit);
+
+    // Canvas 파티클
+    currentHue = h;
+    currentSat = s;
+    currentLit = l;
+    flowOffset = state.flowOff;
+    drawParticles();
+
+    // CSS 변수
+    updateCSSVars(h, s, l);
+
+    // 각 레이어 업데이트
+    updateEdges(state.lateral, state.forward, h, s, l);
+    updateHorizon(state.tiltLR, state.tiltFB);
+    updateArrows(state.lateral);
+
+    requestAnimationFrame(animationLoop);
+  }
+
+  requestAnimationFrame(animationLoop);
+
+  // ════════════════════════════════════════════════════════
+  // WebSocket 연결 & 데이터 처리
+  // ════════════════════════════════════════════════════════
+  let ws = null;
+  let reconnectTimer = null;
+  let serverAddr = '';
+
+  const hudDot    = document.getElementById('hudDot');
+  const hudStatus = document.getElementById('hudStatus');
+  const hudState  = document.getElementById('hudState');
+  const dataLog   = document.getElementById('dataLog');
+
+  function setHUD(dotClass, statusText, stateText) {
+    hudDot.className = 'hud-dot ' + dotClass;
+    hudStatus.textContent = statusText;
+    if (stateText !== undefined) hudState.textContent = stateText;
+  }
+
+  const STATE_LABELS = {
+    cruise:       '등속 주행',
+    accelerating: '가속 중',
+    braking:      '감속 / 정차',
+  };
+
+  const DIR_LABELS = {
+    neutral: '직진',
+    left:    '← 좌 회전',
+    right:   '우 회전 →',
+  };
+
+  function onMotionData(data) {
+    // 타겟 업데이트
+    target.hue     = data.color.h;
+    target.sat     = data.color.s;
+    target.lit     = data.color.l;
+    target.lateral = data.lateral;
+    target.forward = data.forward;
+    target.flowOff = data.flow_offset;
+    target.tiltLR  = data.tilt_lr || 0;
+
+    // HUD
+    const stateLabel = STATE_LABELS[data.motion_state] || data.motion_state;
+    const dirLabel   = DIR_LABELS[data.direction]      || data.direction;
+    hudState.textContent = dirLabel + ' · ' + stateLabel;
+
+    // 데이터 로그
+    dataLog.innerHTML =
+      `lateral: ${data.lateral.toFixed(4)} | forward: ${data.forward.toFixed(4)}<br>` +
+      `dir: ${data.direction} | state: ${data.motion_state}<br>` +
+      `hsl: ${data.color.h} / ${data.color.s}% / ${data.color.l}%`;
+  }
+
+  function connect(addr) {
+    if (ws) { ws.close(); ws = null; }
+    clearTimeout(reconnectTimer);
+
+    serverAddr = addr;
+    setHUD('warn', '연결 중...', '—');
+
+    ws = new WebSocket('ws://' + addr + '/ws/tablet');
+
+    ws.onopen = () => {
+      setHUD('active', '연결됨', '신호 대기');
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'motion') onMotionData(data);
+        if (data.type === 'status') {
+          setHUD('active', `폰 ${data.phones}대 연결`, hudState.textContent);
+        }
+      } catch (_) {}
+    };
+
+    ws.onclose = () => {
+      setHUD('error', '연결 끊어짐 — 재시도 중', hudState.textContent);
+      // 3초 후 자동 재연결
+      reconnectTimer = setTimeout(() => connect(serverAddr), 3000);
+    };
+
+    ws.onerror = () => {
+      setHUD('error', '연결 오류', hudState.textContent);
+    };
+  }
+
+  // ════════════════════════════════════════════════════════
+  // 설정 패널
+  // ════════════════════════════════════════════════════════
+  const setupPanel = document.getElementById('setupPanel');
+
+  document.getElementById('startBtn').addEventListener('click', () => {
+    const addr = document.getElementById('serverAddr').value.trim();
+    if (!addr) return;
+    setupPanel.classList.add('hidden');
+    setTimeout(() => { setupPanel.style.display = 'none'; }, 500);
+    connect(addr);
+  });
+
+  // 전체화면 전환 (태블릿 키오스크 모드)
+  document.addEventListener('click', () => {
+    if (document.fullscreenEnabled && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  });
+  </script>
+</body>
+</html>

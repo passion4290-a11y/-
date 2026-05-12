@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>차량 센서 수집</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+      background: #0a0f14;
+      color: #e0f7fa;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 16px;
+    }
+
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #4dd0e1;
+      letter-spacing: 0.05em;
+    }
+
+    /* 연결 설정 카드 */
+    .card {
+      background: #0d1b24;
+      border: 1px solid #1a3040;
+      border-radius: 14px;
+      padding: 18px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .card label {
+      display: block;
+      font-size: 0.78rem;
+      color: #80cbc4;
+      margin-bottom: 6px;
+      letter-spacing: 0.04em;
+    }
+
+    .card input {
+      width: 100%;
+      background: #0a1520;
+      border: 1px solid #1e3a4a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #e0f7fa;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    .card input:focus {
+      border-color: #00bcd4;
+    }
+
+    /* 버튼 */
+    .btn {
+      width: 100%;
+      max-width: 400px;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      letter-spacing: 0.03em;
+    }
+
+    .btn-connect {
+      background: linear-gradient(135deg, #006064, #00838f);
+      color: #e0f7fa;
+    }
+
+    .btn-connect:active { transform: scale(0.97); }
+    .btn-connect:disabled {
+      background: #1a3040;
+      color: #4a7080;
+      cursor: not-allowed;
+    }
+
+    /* 상태 인디케이터 */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: 400px;
+      background: #0d1b24;
+      border-radius: 10px;
+      padding: 12px 16px;
+      border: 1px solid #1a3040;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+
+    .dot.disconnected { background: #455a64; }
+    .dot.connecting   { background: #ffd54f; animation: pulse 1s infinite; }
+    .dot.connected    { background: #26c6da; animation: glow 2s infinite; }
+    .dot.error        { background: #ef5350; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 4px #26c6da; }
+      50% { box-shadow: 0 0 12px #26c6da; }
+    }
+
+    .status-text {
+      font-size: 0.85rem;
+      color: #80cbc4;
+    }
+
+    /* 센서 데이터 표시 */
+    .sensor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .sensor-item {
+      background: #0d1b24;
+      border: 1px solid #1a3040;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .sensor-item .label {
+      font-size: 0.72rem;
+      color: #4dd0e1;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .sensor-item .value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #e0f7fa;
+    }
+
+    .sensor-item .unit {
+      font-size: 0.7rem;
+      color: #546e7a;
+      margin-left: 3px;
+    }
+
+    /* 게이지 바 */
+    .gauge-wrap {
+      width: 100%;
+      max-width: 400px;
+      background: #0d1b24;
+      border: 1px solid #1a3040;
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+
+    .gauge-label {
+      font-size: 0.78rem;
+      color: #80cbc4;
+      margin-bottom: 8px;
+    }
+
+    .gauge-track {
+      width: 100%;
+      height: 10px;
+      background: #0a1520;
+      border-radius: 5px;
+      position: relative;
+      overflow: visible;
+    }
+
+    .gauge-center {
+      position: absolute;
+      left: 50%;
+      top: -2px;
+      width: 2px;
+      height: 14px;
+      background: #37474f;
+      transform: translateX(-50%);
+    }
+
+    .gauge-fill {
+      position: absolute;
+      top: 0;
+      height: 10px;
+      border-radius: 5px;
+      transition: all 0.1s ease;
+    }
+
+    .gauge-fill.left {
+      right: 50%;
+      background: linear-gradient(to left, #26c6da, #1de9b6);
+    }
+
+    .gauge-fill.right {
+      left: 50%;
+      background: linear-gradient(to right, #26c6da, #448aff);
+    }
+
+    /* 전송 카운터 */
+    .counter {
+      font-size: 0.78rem;
+      color: #37474f;
+    }
+
+    /* iOS 권한 안내 */
+    .ios-notice {
+      width: 100%;
+      max-width: 400px;
+      background: #1a2a1a;
+      border: 1px solid #2e5a2e;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.82rem;
+      color: #81c784;
+      display: none;
+    }
+
+    /* 전송률 선택 */
+    .rate-select {
+      width: 100%;
+      background: #0a1520;
+      border: 1px solid #1e3a4a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #e0f7fa;
+      font-size: 0.95rem;
+      outline: none;
+      margin-top: 12px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>차량 센서 수집 — 휴대폰</h1>
+
+  <!-- iOS 권한 안내 -->
+  <div class="ios-notice" id="iosNotice">
+    iOS 13+ 에서는 센서 권한 요청이 필요합니다.<br>
+    아래 연결 버튼을 누르면 자동으로 권한을 요청합니다.
+  </div>
+
+  <!-- 서버 주소 입력 -->
+  <div class="card">
+    <label>서버 IP:PORT</label>
+    <input id="serverAddr" type="text" value="192.168.0.100:8765" placeholder="192.168.x.x:8765" />
+    <select class="rate-select" id="sampleRate">
+      <option value="50">전송 주기: 50ms (20Hz)</option>
+      <option value="33" selected>전송 주기: 33ms (30Hz)</option>
+      <option value="16">전송 주기: 16ms (60Hz)</option>
+    </select>
+  </div>
+
+  <!-- 연결 버튼 -->
+  <button class="btn btn-connect" id="connectBtn">연결 시작</button>
+
+  <!-- 상태 표시 -->
+  <div class="status-bar">
+    <div class="dot disconnected" id="statusDot"></div>
+    <span class="status-text" id="statusText">연결 안 됨</span>
+    <span class="counter" id="txCounter" style="margin-left:auto">전송: 0</span>
+  </div>
+
+  <!-- 센서 수치 -->
+  <div class="sensor-grid">
+    <div class="sensor-item">
+      <div class="label">좌우 가속도</div>
+      <div><span class="value" id="valX">0.00</span><span class="unit">m/s²</span></div>
+    </div>
+    <div class="sensor-item">
+      <div class="label">전후 가속도</div>
+      <div><span class="value" id="valZ">0.00</span><span class="unit">m/s²</span></div>
+    </div>
+    <div class="sensor-item">
+      <div class="label">좌우 기울기</div>
+      <div><span class="value" id="valGamma">0.0</span><span class="unit">°</span></div>
+    </div>
+    <div class="sensor-item">
+      <div class="label">전후 기울기</div>
+      <div><span class="value" id="valBeta">0.0</span><span class="unit">°</span></div>
+    </div>
+  </div>
+
+  <!-- 좌우 게이지 -->
+  <div class="gauge-wrap">
+    <div class="gauge-label">좌우 가속도 게이지 (±4.5 m/s²)</div>
+    <div class="gauge-track">
+      <div class="gauge-center"></div>
+      <div class="gauge-fill left"  id="gaugeLeft"  style="width:0%"></div>
+      <div class="gauge-fill right" id="gaugeRight" style="width:0%"></div>
+    </div>
+  </div>
+
+  <script>
+    // ──────────────────────────────────────
+    // 상태
+    // ──────────────────────────────────────
+    let ws = null;
+    let txCount = 0;
+    let sendInterval = null;
+    let latestMotion = null;
+    let latestOrientation = null;
+    let isConnected = false;
+
+    const MAX_LATERAL = 4.5;
+
+    // ──────────────────────────────────────
+    // iOS 감지
+    // ──────────────────────────────────────
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) document.getElementById('iosNotice').style.display = 'block';
+
+    // ──────────────────────────────────────
+    // 상태 UI 업데이트
+    // ──────────────────────────────────────
+    function setStatus(state, text) {
+      const dot = document.getElementById('statusDot');
+      dot.className = 'dot ' + state;
+      document.getElementById('statusText').textContent = text;
+    }
+
+    // ──────────────────────────────────────
+    // 센서 이벤트 등록
+    // ──────────────────────────────────────
+    function startSensors() {
+      window.addEventListener('devicemotion', (e) => {
+        latestMotion = e;
+        const acc = e.accelerationIncludingGravity;
+        if (!acc) return;
+
+        const x = acc.x || 0;
+        const z = acc.z || 0;
+
+        document.getElementById('valX').textContent = x.toFixed(2);
+        document.getElementById('valZ').textContent = z.toFixed(2);
+
+        // 게이지
+        const ratio = Math.min(1.0, Math.abs(x) / MAX_LATERAL) * 50;
+        if (x < 0) {
+          document.getElementById('gaugeLeft').style.width  = ratio + '%';
+          document.getElementById('gaugeRight').style.width = '0%';
+        } else {
+          document.getElementById('gaugeLeft').style.width  = '0%';
+          document.getElementById('gaugeRight').style.width = ratio + '%';
+        }
+      }, true);
+
+      window.addEventListener('deviceorientation', (e) => {
+        latestOrientation = e;
+        document.getElementById('valGamma').textContent = (e.gamma || 0).toFixed(1);
+        document.getElementById('valBeta').textContent  = (e.beta  || 0).toFixed(1);
+      }, true);
+    }
+
+    // ──────────────────────────────────────
+    // 데이터 패킷 구성 및 전송
+    // ──────────────────────────────────────
+    function sendData() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+      const m = latestMotion;
+      const o = latestOrientation;
+
+      const packet = {
+        timestamp: Date.now(),
+        acceleration: m?.acceleration
+          ? { x: m.acceleration.x, y: m.acceleration.y, z: m.acceleration.z }
+          : null,
+        accelerationIncludingGravity: m?.accelerationIncludingGravity
+          ? { x: m.accelerationIncludingGravity.x, y: m.accelerationIncludingGravity.y, z: m.accelerationIncludingGravity.z }
+          : null,
+        rotationRate: m?.rotationRate
+          ? { alpha: m.rotationRate.alpha, beta: m.rotationRate.beta, gamma: m.rotationRate.gamma }
+          : null,
+        orientation: o
+          ? { alpha: o.alpha, beta: o.beta, gamma: o.gamma }
+          : null,
+        interval: m?.interval || null,
+      };
+
+      ws.send(JSON.stringify(packet));
+      txCount++;
+      document.getElementById('txCounter').textContent = '전송: ' + txCount;
+    }
+
+    // ──────────────────────────────────────
+    // WebSocket 연결
+    // ──────────────────────────────────────
+    async function connect() {
+      const addr = document.getElementById('serverAddr').value.trim();
+      const rate  = parseInt(document.getElementById('sampleRate').value, 10);
+
+      if (!addr) { alert('서버 주소를 입력하세요.'); return; }
+
+      // iOS 권한 요청
+      if (isIOS && typeof DeviceMotionEvent.requestPermission === 'function') {
+        try {
+          const res = await DeviceMotionEvent.requestPermission();
+          if (res !== 'granted') { alert('센서 권한이 거부되었습니다.'); return; }
+          await DeviceOrientationEvent.requestPermission?.();
+        } catch (err) {
+          alert('권한 요청 실패: ' + err.message);
+          return;
+        }
+      }
+
+      setStatus('connecting', '연결 중...');
+      document.getElementById('connectBtn').disabled = true;
+
+      if (ws) { ws.close(); ws = null; }
+      clearInterval(sendInterval);
+
+      const url = 'ws://' + addr + '/ws/phone';
+
+      try {
+        ws = new WebSocket(url);
+      } catch (e) {
+        setStatus('error', '잘못된 주소');
+        document.getElementById('connectBtn').disabled = false;
+        return;
+      }
+
+      ws.onopen = () => {
+        isConnected = true;
+        setStatus('connected', '연결됨 — ' + addr);
+        startSensors();
+        sendInterval = setInterval(sendData, rate);
+        document.getElementById('connectBtn').textContent = '연결 끊기';
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('connectBtn').onclick = disconnect;
+      };
+
+      ws.onclose = () => {
+        isConnected = false;
+        clearInterval(sendInterval);
+        setStatus('disconnected', '연결 끊어짐');
+        document.getElementById('connectBtn').textContent = '재연결';
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('connectBtn').onclick = connect;
+      };
+
+      ws.onerror = () => {
+        setStatus('error', '연결 오류 — 서버 주소 확인');
+      };
+    }
+
+    function disconnect() {
+      if (ws) { ws.close(); ws = null; }
+      clearInterval(sendInterval);
+      document.getElementById('connectBtn').textContent = '연결 시작';
+      document.getElementById('connectBtn').onclick = connect;
+    }
+
+    document.getElementById('connectBtn').addEventListener('click', connect);
+  </script>
+</body>
+</html>
