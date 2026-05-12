@@ -473,6 +473,11 @@
     }
 
     document.getElementById('connectBtn').addEventListener('click', connect);
+
+    // 페이지를 서빙한 서버로 자동 주소 채우기
+    window.addEventListener('load', () => {
+      document.getElementById('serverAddr').value = location.host;
+    });
   </script>
 </body>
 </html>

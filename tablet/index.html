@@ -699,6 +699,18 @@
     connect(addr);
   });
 
+  // 페이지를 서빙한 서버로 자동 연결 (ngrok 등 외부 주소 포함)
+  window.addEventListener('load', () => {
+    const autoAddr = location.host;  // 예: awning-amiable-debatable.ngrok-free.dev
+    document.getElementById('serverAddr').value = autoAddr;
+    // 0.8초 후 자동으로 연결 시작
+    setTimeout(() => {
+      setupPanel.classList.add('hidden');
+      setTimeout(() => { setupPanel.style.display = 'none'; }, 500);
+      connect(autoAddr);
+    }, 800);
+  });
+
   // 전체화면 전환 (태블릿 키오스크 모드)
   document.addEventListener('click', () => {
     if (document.fullscreenEnabled && !document.fullscreenElement) {
