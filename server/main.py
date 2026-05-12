@@ -255,13 +255,19 @@ async def health():
 # ──────────────────────────────────────────────
 # HTML 파일 서빙 (태블릿/휴대폰 브라우저 접속용)
 # ──────────────────────────────────────────────
+NO_CACHE = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
 @app.get("/tablet")
 async def serve_tablet():
-    return FileResponse(os.path.join(BASE_DIR, "tablet", "index.html"))
+    return FileResponse(os.path.join(BASE_DIR, "tablet", "index.html"), headers=NO_CACHE)
 
 @app.get("/phone")
 async def serve_phone():
-    return FileResponse(os.path.join(BASE_DIR, "phone", "index.html"))
+    return FileResponse(os.path.join(BASE_DIR, "phone", "index.html"), headers=NO_CACHE)
 
 @app.get("/")
 async def serve_index():

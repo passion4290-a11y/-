@@ -263,6 +263,7 @@
   <div class="card">
     <label>서버 IP:PORT</label>
     <input id="serverAddr" type="text" value="" placeholder="자동 설정 중..." />
+    <script>document.getElementById('serverAddr').value = location.host;</script>
     <select class="rate-select" id="sampleRate">
       <option value="50">전송 주기: 50ms (20Hz)</option>
       <option value="33" selected>전송 주기: 33ms (30Hz)</option>
@@ -469,8 +470,12 @@
         document.getElementById('connectBtn').onclick = connect;
       };
 
-      ws.onerror = () => {
-        setStatus('error', '연결 오류 — 서버 주소 확인');
+      ws.onerror = (ev) => {
+        const msg = '연결 실패 → ' + url;
+        setStatus('error', msg);
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('connectBtn').textContent = '재시도';
+        console.error('[WS ERROR]', ev, 'URL:', url);
       };
     }
 

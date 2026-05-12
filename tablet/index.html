@@ -383,6 +383,7 @@
     <div class="setup-card">
       <label>서버 IP:PORT</label>
       <input id="serverAddr" type="text" value="" placeholder="자동 설정 중..." />
+      <script>document.getElementById('serverAddr').value = location.host;</script>
       <button class="setup-btn" id="startBtn">시작</button>
     </div>
   </div>
