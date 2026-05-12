@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>모니터링 대시보드</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:-apple-system,'Segoe UI',sans-serif;
+      background:#030a0e;color:#e0f7fa;
+      min-height:100vh;padding:18px;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      grid-template-rows:auto auto 1fr;
+      gap:16px;
+    }
+    h1{
+      grid-column:1/-1;
+      font-size:1.1rem;color:#4dd0e1;
+      letter-spacing:.08em;display:flex;
+      align-items:center;gap:12px;
+    }
+    .conn-pill{
+      display:inline-flex;align-items:center;gap:6px;
+      background:#0d1b24;border:1px solid #1a3040;
+      border-radius:20px;padding:5px 12px;
+      font-size:.75rem;color:#80cbc4;
+    }
+    .dot{width:8px;height:8px;border-radius:50%;background:#455a64;transition:.3s}
+    .dot.on{background:#26c6da;box-shadow:0 0 8px #26c6da}
+
+    .panel{
+      background:#0d1b24;border:1px solid #1a3040;
+      border-radius:14px;padding:18px;
+    }
+    .panel h2{
+      font-size:.78rem;color:#4dd0e1;
+      letter-spacing:.1em;text-transform:uppercase;
+      margin-bottom:14px;
+    }
+
+    /* 센서 수치 그리드 */
+    .sensor-grid{
+      display:grid;grid-template-columns:1fr 1fr;gap:10px;
+    }
+    .sensor-cell{
+      background:#0a1520;border:1px solid #1a3040;
+      border-radius:10px;padding:12px;
+    }
+    .sensor-cell .lbl{
+      font-size:.7rem;color:#80cbc4;
+      letter-spacing:.05em;text-transform:uppercase;
+      margin-bottom:6px;
+    }
+    .sensor-cell .val{
+      font-size:1.6rem;font-weight:700;
+      font-variant-numeric:tabular-nums;
+    }
+    .sensor-cell .unit{
+      font-size:.7rem;color:#37474f;margin-left:4px;
+    }
+
+    /* 게이지 */
+    .gauge{margin-top:14px}
+    .gauge-lbl{font-size:.7rem;color:#80cbc4;margin-bottom:6px}
+    .gauge-track{
+      position:relative;height:10px;background:#0a1520;
+      border-radius:5px;overflow:visible;
+    }
+    .gauge-mid{
+      position:absolute;left:50%;top:-2px;
+      width:2px;height:14px;background:#37474f;
+      transform:translateX(-50%);
+    }
+    .gauge-fill{position:absolute;top:0;height:10px;border-radius:5px;transition:.1s}
+    .gauge-fill.l{right:50%;background:linear-gradient(to left,#26c6da,#1de9b6)}
+    .gauge-fill.r{left:50%;background:linear-gradient(to right,#26c6da,#448aff)}
+
+    /* 앰비언트 미리보기 */
+    .ambient-preview{
+      position:relative;
+      width:100%;height:280px;
+      background:#030a0e;border-radius:12px;
+      overflow:hidden;border:1px solid #1a3040;
+    }
+    .edge{position:absolute;transition:.25s}
+    .edge.top{top:0;left:0;right:0;height:25%}
+    .edge.bot{bottom:0;left:0;right:0;height:25%}
+    .edge.left{left:0;top:0;bottom:0;width:18%;opacity:0}
+    .edge.right{right:0;top:0;bottom:0;width:18%;opacity:0}
+    .horizon{
+      position:absolute;left:12%;right:12%;
+      top:50%;height:1.5px;
+      background:linear-gradient(to right,transparent,
+        rgba(178,235,242,.8) 30%,rgba(178,235,242,.8) 70%,transparent);
+      transform-origin:center;transition:.25s;
+    }
+    .focus{
+      position:absolute;left:50%;top:50%;
+      width:10px;height:10px;border-radius:50%;
+      background:#b2ebf2;transform:translate(-50%,-50%);
+      box-shadow:0 0 8px #b2ebf2;
+    }
+
+    /* 상태 배지 */
+    .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+    .badge{
+      padding:6px 12px;border-radius:8px;
+      font-size:.75rem;letter-spacing:.04em;
+      background:#0a1520;border:1px solid #1a3040;
+      color:#80cbc4;
+    }
+    .badge.active{
+      background:#004d40;border-color:#00838f;color:#80deea;
+    }
+
+    /* 로그 */
+    .log-panel{grid-column:1/-1;height:220px;overflow:hidden}
+    .log{
+      height:160px;overflow-y:auto;
+      font-family:'Courier New',monospace;
+      font-size:.72rem;line-height:1.5;
+      background:#030a0e;border:1px solid #1a3040;
+      border-radius:8px;padding:10px;
+      color:rgba(0,188,212,.7);
+    }
+    .log .row{display:flex;gap:14px;border-bottom:1px solid #0d1b24;padding:3px 0}
+    .log .ts{color:#37474f;flex-shrink:0}
+    .log .tag{color:#26c6da;flex-shrink:0;width:60px}
+    .log .msg{color:#80cbc4}
+
+    /* 색상 표시 칩 */
+    .color-chip{
+      display:inline-block;width:18px;height:18px;
+      border-radius:4px;vertical-align:middle;
+      margin-right:6px;border:1px solid #1a3040;
+    }
+
+    /* 다운로드 버튼 */
+    .download-btn{
+      margin-top:12px;padding:10px 16px;
+      background:linear-gradient(135deg,#006064,#00838f);
+      color:#e0f7fa;border:none;border-radius:8px;
+      font-size:.85rem;font-weight:600;cursor:pointer;
+      letter-spacing:.04em;
+    }
+    .download-btn:active{transform:scale(.97)}
+
+    @media(max-width:900px){
+      body{grid-template-columns:1fr}
+      .log-panel{grid-column:1}
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    실시간 모니터링 대시보드
+    <span class="conn-pill"><span class="dot" id="dotServer"></span> 서버</span>
+    <span class="conn-pill"><span class="dot" id="dotPhone"></span> 휴대폰 <span id="phoneCount">0</span></span>
+    <span class="conn-pill"><span class="dot" id="dotTablet"></span> 태블릿 <span id="tabletCount">0</span></span>
+  </h1>
+
+  <!-- 좌측 상단: 센서 수치 -->
+  <div class="panel">
+    <h2>휴대폰 센서 데이터</h2>
+    <div class="sensor-grid">
+      <div class="sensor-cell">
+        <div class="lbl">좌우 가속도</div>
+        <div><span class="val" id="lateral">0.000</span><span class="unit">정규화</span></div>
+      </div>
+      <div class="sensor-cell">
+        <div class="lbl">전후 가속도</div>
+        <div><span class="val" id="forward">0.000</span><span class="unit">정규화</span></div>
+      </div>
+      <div class="sensor-cell">
+        <div class="lbl">좌우 기울기</div>
+        <div><span class="val" id="tiltLR">0.0</span><span class="unit">°</span></div>
+      </div>
+      <div class="sensor-cell">
+        <div class="lbl">전후 기울기</div>
+        <div><span class="val" id="tiltFB">0.0</span><span class="unit">°</span></div>
+      </div>
+    </div>
+
+    <div class="gauge">
+      <div class="gauge-lbl">좌우 이동 (−1 좌 ↔ 우 +1)</div>
+      <div class="gauge-track">
+        <div class="gauge-mid"></div>
+        <div class="gauge-fill l" id="gL" style="width:0"></div>
+        <div class="gauge-fill r" id="gR" style="width:0"></div>
+      </div>
+    </div>
+
+    <div class="badges">
+      <div class="badge" id="bDir">방향: —</div>
+      <div class="badge" id="bMotion">상태: —</div>
+    </div>
+  </div>
+
+  <!-- 우측 상단: 앰비언트 미리보기 -->
+  <div class="panel">
+    <h2>태블릿 화면 미리보기</h2>
+    <div class="ambient-preview">
+      <div class="edge top" id="eTop"></div>
+      <div class="edge bot" id="eBot"></div>
+      <div class="edge left" id="eLeft"></div>
+      <div class="edge right" id="eRight"></div>
+      <div class="horizon" id="horizon"></div>
+      <div class="focus"></div>
+    </div>
+
+    <div class="badges">
+      <div class="badge">
+        <span class="color-chip" id="cChip"></span>
+        <span id="cText">hsl(187, 95%, 32%)</span>
+      </div>
+      <div class="badge" id="bFlow">흐름: 0.000</div>
+    </div>
+  </div>
+
+  <!-- 하단: 데이터 로그 -->
+  <div class="panel log-panel">
+    <h2>이벤트 로그</h2>
+    <div class="log" id="log"></div>
+    <button class="download-btn" id="dlBtn">데이터 CSV 다운로드</button>
+  </div>
+
+  <script>
+    // 자동으로 서버 주소 설정
+    const HOST = location.host;
+
+    const dotServer = document.getElementById('dotServer');
+    const dotPhone  = document.getElementById('dotPhone');
+    const dotTablet = document.getElementById('dotTablet');
+
+    const recordedData = [];
+
+    function ts(){
+      const d = new Date();
+      return d.toLocaleTimeString('ko-KR', {hour12:false}) +
+             '.' + String(d.getMilliseconds()).padStart(3,'0');
+    }
+
+    function addLog(tag, msg){
+      const log = document.getElementById('log');
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `<span class="ts">${ts()}</span><span class="tag">${tag}</span><span class="msg">${msg}</span>`;
+      log.insertBefore(row, log.firstChild);
+      // 최대 200줄
+      while(log.children.length > 200) log.removeChild(log.lastChild);
+    }
+
+    function setColor(h,s,l){
+      const c = `hsl(${h}, ${s}%, ${l}%)`;
+      document.getElementById('cChip').style.background = c;
+      document.getElementById('cText').textContent = `hsl(${h}, ${s}%, ${l}%)`;
+
+      // 미리보기 엣지
+      document.getElementById('eTop').style.background =
+        `radial-gradient(ellipse 80% 100% at 50% 0%, hsla(${h},${s}%,${l+8}%,.7), transparent)`;
+      document.getElementById('eBot').style.background =
+        `radial-gradient(ellipse 80% 100% at 50% 100%, hsla(${h},${s}%,${l+8}%,.7), transparent)`;
+    }
+
+    function updateGauge(lat){
+      const r = Math.min(1, Math.abs(lat)) * 50;
+      if(lat < 0){
+        document.getElementById('gL').style.width = r + '%';
+        document.getElementById('gR').style.width = '0';
+      } else {
+        document.getElementById('gL').style.width = '0';
+        document.getElementById('gR').style.width = r + '%';
+      }
+    }
+
+    function updateEdges(lat){
+      if(lat < -.08){
+        document.getElementById('eLeft').style.opacity = '0';
+        document.getElementById('eRight').style.opacity = String(Math.abs(lat));
+      } else if(lat > .08){
+        document.getElementById('eLeft').style.opacity = String(Math.abs(lat));
+        document.getElementById('eRight').style.opacity = '0';
+      } else {
+        document.getElementById('eLeft').style.opacity = '0';
+        document.getElementById('eRight').style.opacity = '0';
+      }
+      document.getElementById('eLeft').style.background =
+        'radial-gradient(ellipse 100% 60% at 0% 50%, hsla(175,90%,40%,.5), transparent)';
+      document.getElementById('eRight').style.background =
+        'radial-gradient(ellipse 100% 60% at 100% 50%, hsla(200,95%,40%,.5), transparent)';
+    }
+
+    function updateHorizon(tiltLR){
+      const angle = Math.max(-12, Math.min(12, -tiltLR * 0.35));
+      document.getElementById('horizon').style.transform = `rotate(${angle}deg)`;
+    }
+
+    const DIR_LABELS = {neutral:'직진', left:'← 좌', right:'우 →'};
+    const STATE_LABELS = {cruise:'등속', accelerating:'가속', braking:'감속/제동'};
+
+    function onMotion(d){
+      document.getElementById('lateral').textContent = d.lateral.toFixed(3);
+      document.getElementById('forward').textContent = d.forward.toFixed(3);
+      document.getElementById('tiltLR').textContent  = d.tilt_lr.toFixed(1);
+      document.getElementById('tiltFB').textContent  = d.tilt_fb.toFixed(1);
+
+      updateGauge(d.lateral);
+      updateEdges(d.lateral);
+      updateHorizon(d.tilt_lr);
+      setColor(d.color.h, d.color.s, d.color.l);
+
+      document.getElementById('bDir').textContent    = '방향: ' + (DIR_LABELS[d.direction]||d.direction);
+      document.getElementById('bMotion').textContent = '상태: ' + (STATE_LABELS[d.motion_state]||d.motion_state);
+      document.getElementById('bFlow').textContent   = '흐름: ' + d.flow_offset.toFixed(3);
+
+      // 기록
+      recordedData.push({
+        time: Date.now(),
+        lateral: d.lateral, forward: d.forward,
+        tilt_lr: d.tilt_lr, tilt_fb: d.tilt_fb,
+        direction: d.direction, motion_state: d.motion_state,
+        hue: d.color.h, sat: d.color.s, lit: d.color.l,
+      });
+    }
+
+    function onStatus(d){
+      document.getElementById('phoneCount').textContent  = d.phones;
+      document.getElementById('tabletCount').textContent = d.tablets;
+      dotPhone.classList.toggle('on',  d.phones  > 0);
+      dotTablet.classList.toggle('on', d.tablets > 0);
+      addLog('STATUS', `phones=${d.phones} tablets=${d.tablets}`);
+    }
+
+    // WebSocket 연결
+    let ws = null;
+    function connect(){
+      const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+      const url = protocol + HOST + '/ws/tablet';
+      addLog('CONNECT', url);
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        dotServer.classList.add('on');
+        addLog('OK', '서버 연결됨');
+      };
+      ws.onmessage = (e) => {
+        try {
+          const d = JSON.parse(e.data);
+          if (d.type === 'motion') onMotion(d);
+          if (d.type === 'status') onStatus(d);
+        } catch(err) {
+          addLog('ERR', 'parse: ' + err.message);
+        }
+      };
+      ws.onclose = () => {
+        dotServer.classList.remove('on');
+        addLog('CLOSE', '재연결 3초 후');
+        setTimeout(connect, 3000);
+      };
+      ws.onerror = () => addLog('ERR', '연결 오류 → ' + url);
+    }
+
+    connect();
+
+    // CSV 다운로드
+    document.getElementById('dlBtn').addEventListener('click', () => {
+      if(!recordedData.length){ alert('기록된 데이터가 없습니다.'); return; }
+      const header = 'time,lateral,forward,tilt_lr,tilt_fb,direction,motion_state,hue,sat,lit\n';
+      const rows = recordedData.map(r =>
+        `${r.time},${r.lateral},${r.forward},${r.tilt_lr},${r.tilt_fb},${r.direction},${r.motion_state},${r.hue},${r.sat},${r.lit}`
+      ).join('\n');
+      const blob = new Blob([header + rows], {type:'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'motion_data_' + Date.now() + '.csv';
+      a.click();
+    });
+  </script>
+</body>
+</html>

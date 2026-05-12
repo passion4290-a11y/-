@@ -269,6 +269,10 @@ async def serve_tablet():
 async def serve_phone():
     return FileResponse(os.path.join(BASE_DIR, "phone", "index.html"), headers=NO_CACHE)
 
+@app.get("/monitor")
+async def serve_monitor():
+    return FileResponse(os.path.join(BASE_DIR, "monitor", "index.html"), headers=NO_CACHE)
+
 @app.get("/")
 async def serve_index():
     html = """<!DOCTYPE html>
