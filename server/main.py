@@ -323,6 +323,10 @@ async def serve_monitor():
 async def serve_manual():
     return FileResponse(os.path.join(BASE_DIR, "manual.html"), headers=NO_CACHE)
 
+@app.get("/presentation")
+async def serve_presentation():
+    return FileResponse(os.path.join(BASE_DIR, "presentation", "index.html"), headers=NO_CACHE)
+
 @app.get("/")
 async def serve_index():
     html = """<!DOCTYPE html>

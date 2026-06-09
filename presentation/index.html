@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>전기버스 멀미 저감 앰비언트 시스템 — 실험 기록</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --cyan:#00bcd4;--cyan-dark:#006064;--cyan-light:#e0f7fa;
+  --bg:#030a0e;--surface:#0d1b24;--border:rgba(0,188,212,.18);
+  --text:#e0f7fa;--dim:#546e7a;
+}
+html,body{width:100%;height:100%;background:#1a1a2e;font-family:-apple-system,'Malgun Gothic','Segoe UI',sans-serif;overflow:hidden}
+
+/* ── 슬라이드 컨테이너 ── */
+.deck{width:100%;height:100%;position:relative}
+.slide{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;
+  transition:opacity .45s ease;
+}
+.slide.active{opacity:1;pointer-events:auto}
+
+/* 네비게이션 */
+.nav{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:14px;z-index:100;
+  background:rgba(13,27,36,.9);border:1px solid var(--border);
+  border-radius:30px;padding:10px 20px;backdrop-filter:blur(8px);
+}
+.nav button{
+  background:none;border:none;color:var(--cyan);
+  font-size:1.1rem;cursor:pointer;padding:4px 8px;
+  border-radius:6px;transition:.2s;
+}
+.nav button:hover{background:rgba(0,188,212,.15)}
+.nav .page{font-size:.82rem;color:#80cbc4;min-width:55px;text-align:center}
+.dots{display:flex;gap:7px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:#37474f;cursor:pointer;transition:.2s}
+.dot.on{background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+
+/* 키보드 힌트 */
+.hint{position:fixed;top:14px;right:18px;font-size:.7rem;color:#37474f;z-index:100}
+
+/* ════════════════════════════
+   슬라이드 01 — 표지
+════════════════════════════ */
+.s01{
+  background:radial-gradient(ellipse 80% 70% at 50% 40%, #003d44 0%, var(--bg) 70%);
+  align-items:center;justify-content:center;text-align:center;gap:18px;
+}
+.s01 .tag{
+  background:rgba(0,188,212,.15);border:1px solid var(--border);
+  border-radius:20px;padding:6px 18px;
+  font-size:.78rem;color:var(--cyan);letter-spacing:.12em;
+}
+.s01 h1{font-size:2.4rem;font-weight:800;color:var(--text);line-height:1.25;max-width:700px}
+.s01 h1 span{color:var(--cyan)}
+.s01 .sub{font-size:1rem;color:#80cbc4;max-width:500px;line-height:1.6}
+.s01 .meta{display:flex;gap:24px;margin-top:8px}
+.s01 .meta div{font-size:.82rem;color:var(--dim);text-align:center}
+.s01 .meta div strong{display:block;color:#80cbc4;font-size:.95rem}
+.pulse-ring{
+  width:200px;height:200px;border-radius:50%;
+  border:2px solid rgba(0,188,212,.3);
+  position:absolute;animation:pr 3s ease-out infinite;
+}
+.pulse-ring:nth-child(2){animation-delay:1s}
+.pulse-ring:nth-child(3){animation-delay:2s}
+@keyframes pr{0%{transform:scale(.8);opacity:.8}100%{transform:scale(2);opacity:0}}
+
+/* ════════════════════════════
+   공통 슬라이드 레이아웃
+════════════════════════════ */
+.slide-header{
+  padding:32px 48px 20px;
+  border-bottom:1px solid var(--border);
+  background:var(--bg);
+}
+.slide-header .num{font-size:.72rem;color:var(--cyan);letter-spacing:.15em;margin-bottom:4px}
+.slide-header h2{font-size:1.55rem;font-weight:700;color:var(--text)}
+.slide-header p{font-size:.88rem;color:var(--dim);margin-top:4px}
+.slide-body{
+  flex:1;background:var(--bg);
+  padding:28px 48px 80px;overflow:hidden;
+}
+
+/* ════════════════════════════
+   슬라이드 02 — 시스템 개요
+════════════════════════════ */
+.arch-diagram{
+  display:flex;align-items:center;justify-content:center;gap:0;
+  height:100%;
+}
+.arch-node{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:20px 22px;text-align:center;
+  min-width:148px;
+}
+.arch-node .icon{font-size:2rem;margin-bottom:8px}
+.arch-node .title{font-size:.85rem;font-weight:700;color:var(--cyan);margin-bottom:6px}
+.arch-node .desc{font-size:.72rem;color:var(--dim);line-height:1.5}
+.arch-arrow{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  margin:0 10px;
+}
+.arch-arrow .line{
+  width:60px;height:2px;
+  background:linear-gradient(to right,var(--cyan-dark),var(--cyan));
+}
+.arch-arrow .label{font-size:.65rem;color:#37474f}
+.arch-arrow .arrowhead{color:var(--cyan);font-size:.9rem}
+
+/* ════════════════════════════
+   슬라이드 03 — 장비 사진 모의
+════════════════════════════ */
+.device-grid{
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  gap:18px;height:calc(100% - 20px);
+}
+.device-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;overflow:hidden;display:flex;flex-direction:column;
+}
+.device-card .screen{flex:1;position:relative;overflow:hidden}
+.device-card .label{
+  padding:10px 14px;font-size:.78rem;color:#80cbc4;
+  border-top:1px solid var(--border);text-align:center;
+  letter-spacing:.04em;
+}
+
+/* 태블릿 화면 미니 렌더 */
+.tablet-mini{
+  width:100%;height:100%;background:var(--bg);position:relative;overflow:hidden;
+}
+.tm-edge-top{
+  position:absolute;top:0;left:0;right:0;height:30%;
+  background:radial-gradient(ellipse 80% 100% at 50% 0%,hsla(187,95%,32%,.7),transparent);
+  animation:breathe 6.5s ease-in-out infinite;
+}
+.tm-edge-bot{
+  position:absolute;bottom:0;left:0;right:0;height:30%;
+  background:radial-gradient(ellipse 80% 100% at 50% 100%,hsla(187,95%,32%,.7),transparent);
+  animation:breathe 6.5s ease-in-out infinite;
+}
+@keyframes breathe{0%,100%{opacity:.6}50%{opacity:1}}
+.tm-horizon{
+  position:absolute;left:10%;right:10%;top:50%;height:1.5px;
+  background:linear-gradient(to right,transparent,rgba(178,235,242,.85) 30%,rgba(178,235,242,.85) 70%,transparent);
+}
+.tm-focus{
+  position:absolute;left:50%;top:50%;
+  width:8px;height:8px;border-radius:50%;
+  background:#b2ebf2;transform:translate(-50%,-50%);
+  box-shadow:0 0 8px #b2ebf2;
+}
+.tm-ring{
+  position:absolute;border-radius:50%;
+  border:1px solid rgba(178,235,242,.3);
+  animation:ring-pulse 3.2s ease-in-out infinite;
+}
+@keyframes ring-pulse{0%,100%{opacity:.7;transform:scale(.92)}50%{opacity:.2;transform:scale(1.06)}}
+
+/* 휴대폰 화면 미니 */
+.phone-mini{
+  width:100%;height:100%;background:#0a0f14;
+  display:flex;flex-direction:column;padding:10px;gap:6px;
+}
+.pm-title{font-size:.6rem;color:var(--cyan);text-align:center;letter-spacing:.06em;padding:4px 0}
+.pm-status{
+  display:flex;align-items:center;gap:5px;
+  background:#0d1b24;border-radius:6px;padding:6px 8px;
+}
+.pm-dot{width:6px;height:6px;border-radius:50%;background:#26c6da;box-shadow:0 0 4px #26c6da}
+.pm-dot-txt{font-size:.55rem;color:#80cbc4}
+.pm-row{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.pm-cell{background:#0d1b24;border-radius:5px;padding:6px 7px}
+.pm-lbl{font-size:.5rem;color:#4dd0e1;letter-spacing:.04em}
+.pm-val{font-size:.85rem;font-weight:700;color:var(--text)}
+.pm-gauge-wrap{background:#0d1b24;border-radius:5px;padding:6px 7px;margin-top:2px}
+.pm-gauge-track{height:6px;background:#0a1520;border-radius:3px;position:relative;overflow:hidden}
+.pm-gauge-fill{
+  position:absolute;left:48%;top:0;height:100%;width:12%;
+  background:linear-gradient(to right,#26c6da,#448aff);
+  border-radius:3px;animation:gauge-move 2s ease-in-out infinite alternate;
+}
+@keyframes gauge-move{0%{left:48%;width:8%}100%{left:55%;width:18%}}
+
+/* 모니터 화면 미니 */
+.monitor-mini{
+  width:100%;height:100%;background:#030a0e;padding:8px;
+  display:flex;flex-direction:column;gap:5px;
+}
+.mm-header{display:flex;gap:5px;align-items:center}
+.mm-conn{display:flex;align-items:center;gap:3px;background:#0d1b24;border-radius:8px;padding:3px 7px}
+.mm-dot{width:5px;height:5px;border-radius:50%;background:#26c6da;box-shadow:0 0 4px #26c6da}
+.mm-txt{font-size:.5rem;color:#80cbc4}
+.mm-body{display:grid;grid-template-columns:1fr 1fr;gap:5px;flex:1}
+.mm-panel{background:#0d1b24;border-radius:6px;padding:7px}
+.mm-lbl{font-size:.5rem;color:#4dd0e1;letter-spacing:.06em;margin-bottom:5px}
+.mm-vals{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.mm-cell{background:#0a1520;border-radius:4px;padding:4px}
+.mm-clbl{font-size:.42rem;color:#546e7a}
+.mm-cval{font-size:.7rem;font-weight:700;color:var(--text)}
+/* RPM mini arc */
+.mm-rpm{position:relative;width:50px;height:50px;margin:0 auto}
+.mm-rpm svg{width:100%;height:100%;transform:rotate(135deg)}
+.mm-rpm-txt{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+}
+.mm-rpm-val{font-size:.65rem;font-weight:700;color:var(--text)}
+.mm-rpm-lbl{font-size:.4rem;color:#37474f}
+
+/* ════════════════════════════
+   슬라이드 04 — 실험 공간 구성도
+════════════════════════════ */
+.space-diagram{
+  display:flex;align-items:center;justify-content:center;height:100%;
+}
+
+/* ════════════════════════════
+   슬라이드 05 — 측정 원리
+════════════════════════════ */
+.principle-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:20px;height:100%;
+}
+.principle-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:22px;
+}
+.principle-card h3{font-size:.9rem;color:var(--cyan);margin-bottom:10px;font-weight:700}
+.principle-card p{font-size:.82rem;color:#80cbc4;line-height:1.7}
+.color-strip{
+  display:flex;height:32px;border-radius:8px;overflow:hidden;margin:12px 0;
+}
+.color-strip div{flex:1}
+.timeline{margin-top:10px}
+.tl-row{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(0,188,212,.1)}
+.tl-state{
+  flex-shrink:0;width:60px;font-size:.7rem;color:var(--cyan);
+  font-weight:700;letter-spacing:.04em;
+}
+.tl-bar-wrap{flex:1;height:8px;background:#0a1520;border-radius:4px;overflow:hidden}
+.tl-bar{height:100%;border-radius:4px}
+.tl-val{flex-shrink:0;font-size:.7rem;color:#80cbc4;width:60px;text-align:right}
+
+/* ════════════════════════════
+   슬라이드 06 — 피험자 수행 절차
+════════════════════════════ */
+.procedure{
+  display:flex;flex-direction:column;gap:12px;padding-top:4px;
+}
+.proc-row{
+  display:flex;align-items:flex-start;gap:16px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:16px 20px;
+}
+.proc-num{
+  flex-shrink:0;width:34px;height:34px;
+  background:var(--cyan-dark);color:var(--text);
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:.9rem;
+}
+.proc-body h4{font-size:.88rem;color:var(--text);margin-bottom:3px;font-weight:600}
+.proc-body p{font-size:.78rem;color:var(--dim);line-height:1.5}
+.proc-badge{
+  margin-left:auto;flex-shrink:0;
+  padding:4px 10px;border-radius:12px;
+  font-size:.7rem;font-weight:600;
+  background:rgba(0,188,212,.12);
+  border:1px solid rgba(0,188,212,.3);color:var(--cyan);
+}
+
+/* ════════════════════════════
+   슬라이드 07 — 사진 슬롯
+════════════════════════════ */
+.photo-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  grid-template-rows:1fr 1fr;
+  gap:12px;height:calc(100% - 10px);
+}
+.photo-slot{
+  background:var(--surface);border:2px dashed var(--border);
+  border-radius:12px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;
+  cursor:pointer;transition:.2s;position:relative;overflow:hidden;
+}
+.photo-slot:hover{border-color:var(--cyan);background:rgba(0,188,212,.04)}
+.photo-slot .icon{font-size:1.8rem;opacity:.4}
+.photo-slot .label{font-size:.78rem;color:var(--dim);text-align:center}
+.photo-slot input[type=file]{
+  position:absolute;inset:0;opacity:0;cursor:pointer;
+}
+.photo-slot img{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;display:none;
+}
+.photo-slot.has-img img{display:block}
+.photo-slot.has-img .icon,
+.photo-slot.has-img .label{display:none}
+
+/* ════════════════════════════
+   슬라이드 08 — 데이터 결과
+════════════════════════════ */
+.result-layout{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:20px;height:100%;
+}
+.result-panel{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:10px;
+}
+.result-panel h3{font-size:.85rem;color:var(--cyan);font-weight:700}
+.chart-placeholder{
+  flex:1;background:#030a0e;border-radius:8px;
+  position:relative;overflow:hidden;
+}
+/* 간단한 더미 차트 라인 */
+.chart-line{
+  position:absolute;bottom:20px;left:10px;right:10px;height:2px;
+}
+.ssq-bars{display:flex;flex-direction:column;gap:8px;padding-top:8px}
+.ssq-row{display:flex;align-items:center;gap:10px}
+.ssq-label{font-size:.72rem;color:#80cbc4;width:60px;flex-shrink:0}
+.ssq-bar-wrap{flex:1;height:16px;background:#030a0e;border-radius:8px;overflow:hidden;display:flex;gap:3px;padding:2px}
+.ssq-bar{height:100%;border-radius:5px;transition:width .5s ease}
+.ssq-val{font-size:.72rem;color:#80cbc4;width:35px;text-align:right;flex-shrink:0}
+
+/* ════════════════════════════
+   슬라이드 09 — 비하인드
+════════════════════════════ */
+.behind-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:20px;height:100%;
+}
+.behind-slot{
+  background:var(--surface);border:2px dashed var(--border);
+  border-radius:14px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:10px;
+  cursor:pointer;position:relative;overflow:hidden;transition:.2s;
+  padding:20px;
+}
+.behind-slot:hover{border-color:var(--cyan)}
+.behind-slot .slot-icon{font-size:2.5rem;opacity:.3}
+.behind-slot .slot-label{font-size:.85rem;color:var(--dim);text-align:center;line-height:1.5}
+.behind-slot input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.behind-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
+.behind-slot.has-img img{display:block}
+.behind-slot.has-img .slot-icon,.behind-slot.has-img .slot-label{display:none}
+
+/* ════════════════════════════
+   슬라이드 10 — 마무리
+════════════════════════════ */
+.s10{
+  background:radial-gradient(ellipse 80% 70% at 50% 60%, #003d44 0%, var(--bg) 70%);
+  align-items:center;justify-content:center;text-align:center;gap:20px;
+}
+.s10 h2{font-size:2rem;font-weight:800;color:var(--text)}
+.s10 h2 span{color:var(--cyan)}
+.s10 .sub{font-size:.95rem;color:#80cbc4;max-width:520px;line-height:1.7}
+.tag-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:600px}
+.tag-item{
+  background:rgba(0,188,212,.1);border:1px solid var(--border);
+  border-radius:16px;padding:6px 14px;
+  font-size:.78rem;color:#80cbc4;
+}
+</style>
+</head>
+<body>
+
+<div class="hint">← → 키 또는 아래 버튼으로 이동</div>
+
+<div class="deck" id="deck">
+
+<!-- ══ SLIDE 01 — 표지 ══ -->
+<div class="slide s01 active" data-idx="0">
+  <div class="pulse-ring"></div>
+  <div class="pulse-ring"></div>
+  <div class="pulse-ring"></div>
+  <div class="tag">실험 기록 아카이브 · 2025</div>
+  <h1>전기버스<br><span>멀미 저감 앰비언트</span><br>시스템 v1.0</h1>
+  <p class="sub">사이언 계열 시각 자극으로 전정기관과 시각 정보의 괴리를 최소화하는 실험 시스템의 현장 기록</p>
+  <div class="meta">
+    <div><strong>실험 환경</strong>전기버스 내부</div>
+    <div><strong>기기 구성</strong>노트북 + 태블릿 + 스마트폰</div>
+    <div><strong>기술 스택</strong>Python · Web Audio · WebSocket</div>
+  </div>
+</div>
+
+<!-- ══ SLIDE 02 — 시스템 개요 ══ -->
+<div class="slide" data-idx="1">
+  <div class="slide-header">
+    <div class="num">01 — 시스템 개요</div>
+    <h2>데이터 흐름 아키텍처</h2>
+    <p>휴대폰 센서 → 서버 처리 → 태블릿 시각화의 3단계 실시간 파이프라인</p>
+  </div>
+  <div class="slide-body">
+    <div class="arch-diagram">
+      <div class="arch-node">
+        <div class="icon">📱</div>
+        <div class="title">휴대폰</div>
+        <div class="desc">가속도 센서<br>30Hz 수집<br>iOS Safari</div>
+      </div>
+      <div class="arch-arrow">
+        <div class="line"></div>
+        <div class="arrowhead">▶</div>
+        <div class="label">wss:// WebSocket</div>
+      </div>
+      <div class="arch-node">
+        <div class="icon">💻</div>
+        <div class="title">Python 서버</div>
+        <div class="desc">칼만 필터<br>RPM 계산<br>색상 매핑</div>
+      </div>
+      <div class="arch-arrow">
+        <div class="line"></div>
+        <div class="arrowhead">▶</div>
+        <div class="label">wss:// WebSocket</div>
+      </div>
+      <div class="arch-node">
+        <div class="icon">🖥️</div>
+        <div class="title">태블릿</div>
+        <div class="desc">앰비언트 UI<br>가상 엔진음<br>Web Audio</div>
+      </div>
+      <div class="arch-arrow">
+        <div class="line"></div>
+        <div class="arrowhead">▶</div>
+        <div class="label">실시간 공유</div>
+      </div>
+      <div class="arch-node">
+        <div class="icon">📊</div>
+        <div class="title">모니터 PC</div>
+        <div class="desc">RPM 게이지<br>센서 수치<br>CSV 기록</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SLIDE 03 — 장비 화면 ══ -->
+<div class="slide" data-idx="2">
+  <div class="slide-header">
+    <div class="num">02 — 장비 사진</div>
+    <h2>기기별 화면 구성</h2>
+    <p>실험에 사용된 3종 기기의 실제 UI 렌더링</p>
+  </div>
+  <div class="slide-body">
+    <div class="device-grid">
+
+      <!-- 태블릿 -->
+      <div class="device-card">
+        <div class="screen">
+          <div class="tablet-mini">
+            <div class="tm-edge-top"></div>
+            <div class="tm-edge-bot"></div>
+            <div style="position:absolute;left:8%;right:8%;top:50%;height:1.5px;background:linear-gradient(to right,transparent,rgba(178,235,242,.85) 30%,rgba(178,235,242,.85) 70%,transparent)"></div>
+            <div style="position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;background:#b2ebf2;transform:translate(-50%,-50%);box-shadow:0 0 8px #b2ebf2"></div>
+            <div style="position:absolute;left:50%;top:50%;width:28px;height:28px;border-radius:50%;border:1px solid rgba(178,235,242,.3);transform:translate(-50%,-50%)"></div>
+            <div style="position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;border:1px solid rgba(178,235,242,.2);transform:translate(-50%,-50%)"></div>
+            <div style="position:absolute;left:50%;top:50%;width:80px;height:80px;border-radius:50%;border:1px solid rgba(178,235,242,.1);transform:translate(-50%,-50%)"></div>
+            <!-- 좌우 엣지 글로우 시뮬 -->
+            <div style="position:absolute;right:0;top:0;bottom:0;width:14%;background:radial-gradient(ellipse 100% 60% at 100% 50%,hsla(200,95%,40%,.4),transparent);animation:breathe 3s ease-in-out infinite alternate"></div>
+            <!-- HUD -->
+            <div style="position:absolute;top:8px;right:10px;font-size:.55rem;color:#4dd0e1;letter-spacing:.04em">우 회전 · 가속</div>
+            <!-- 데이터 로그 -->
+            <div style="position:absolute;bottom:6px;left:10px;font-size:.48rem;color:rgba(0,188,212,.4);font-family:monospace;line-height:1.5">
+              lateral: 0.3241<br>hsl: 195 / 97% / 29%<br>rpm: 2840
+            </div>
+            <!-- 파티클 -->
+            <div style="position:absolute;width:3px;height:3px;background:rgba(38,198,218,.4);border-radius:50%;top:30%;left:20%;animation:float1 4s linear infinite"></div>
+            <div style="position:absolute;width:2px;height:2px;background:rgba(38,198,218,.3);border-radius:50%;top:60%;left:70%;animation:float1 5s linear infinite .5s"></div>
+            <div style="position:absolute;width:2px;height:2px;background:rgba(38,198,218,.3);border-radius:50%;top:45%;left:40%;animation:float1 3.5s linear infinite 1s"></div>
+            @keyframes float1{0%{transform:translateY(0)}100%{transform:translateY(-60px);opacity:0}}
+          </div>
+        </div>
+        <div class="label">🖥️ 태블릿 — 앰비언트 디스플레이</div>
+      </div>
+
+      <!-- 휴대폰 -->
+      <div class="device-card">
+        <div class="screen">
+          <div class="phone-mini">
+            <div class="pm-title">차량 센서 수집 — 휴대폰</div>
+            <div class="pm-status">
+              <div class="pm-dot" style="animation:glow 2s infinite"></div>
+              <div class="pm-dot-txt">연결됨 — orchestra.trycloudflare.com</div>
+            </div>
+            <div class="pm-row">
+              <div class="pm-cell"><div class="pm-lbl">좌우 가속도</div><div class="pm-val">0.32</div></div>
+              <div class="pm-cell"><div class="pm-lbl">전후 가속도</div><div class="pm-val">1.85</div></div>
+              <div class="pm-cell"><div class="pm-lbl">좌우 기울기</div><div class="pm-val">8.4°</div></div>
+              <div class="pm-cell"><div class="pm-lbl">전후 기울기</div><div class="pm-val">2.1°</div></div>
+            </div>
+            <div class="pm-gauge-wrap">
+              <div class="pm-lbl" style="margin-bottom:4px">좌우 가속도 게이지</div>
+              <div class="pm-gauge-track">
+                <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:#37474f;transform:translateX(-50%)"></div>
+                <div class="pm-gauge-fill"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="label">📱 휴대폰 — 센서 수집</div>
+      </div>
+
+      <!-- 모니터 -->
+      <div class="device-card">
+        <div class="screen">
+          <div class="monitor-mini">
+            <div class="mm-header">
+              <div class="mm-conn"><div class="mm-dot"></div><div class="mm-txt">서버</div></div>
+              <div class="mm-conn"><div class="mm-dot"></div><div class="mm-txt">폰 1</div></div>
+              <div class="mm-conn"><div class="mm-dot"></div><div class="mm-txt">태블릿 1</div></div>
+            </div>
+            <div class="mm-body">
+              <div class="mm-panel">
+                <div class="mm-lbl">센서 데이터</div>
+                <div class="mm-vals">
+                  <div class="mm-cell"><div class="mm-clbl">좌우</div><div class="mm-cval">0.324</div></div>
+                  <div class="mm-cell"><div class="mm-clbl">전후</div><div class="mm-cval">0.369</div></div>
+                  <div class="mm-cell"><div class="mm-clbl">기울기</div><div class="mm-cval">8.4°</div></div>
+                  <div class="mm-cell"><div class="mm-clbl">상태</div><div class="mm-cval" style="font-size:.55rem">가속</div></div>
+                </div>
+              </div>
+              <div class="mm-panel" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px">
+                <div class="mm-lbl" style="text-align:center">가상 RPM</div>
+                <div class="mm-rpm">
+                  <svg viewBox="0 0 120 120" style="transform:rotate(135deg)">
+                    <circle cx="60" cy="60" r="52" fill="none" stroke="#0a1520" stroke-width="10" stroke-dasharray="245 327" stroke-linecap="round"/>
+                    <circle cx="60" cy="60" r="52" fill="none" stroke="#26c6da" stroke-width="10" stroke-dasharray="98 327" stroke-linecap="round"/>
+                  </svg>
+                  <div class="mm-rpm-txt"><div class="mm-rpm-val">2840</div><div class="mm-rpm-lbl">RPM</div></div>
+                </div>
+                <div style="font-size:.55rem;color:#80cbc4">32.5 km/h</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="label">💻 모니터링 대시보드</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ SLIDE 04 — 실험 공간 구성도 ══ -->
+<div class="slide" data-idx="3">
+  <div class="slide-header">
+    <div class="num">03 — 실험 공간 설명</div>
+    <h2>전기버스 내부 기기 배치도</h2>
+    <p>실험 참가자, 태블릿, 휴대폰의 공간적 배치</p>
+  </div>
+  <div class="slide-body">
+    <div class="space-diagram">
+      <svg width="720" height="400" viewBox="0 0 720 400" style="max-width:100%">
+        <!-- 버스 외형 -->
+        <rect x="30" y="60" width="660" height="300" rx="30" fill="#0d1b24" stroke="#1a3040" stroke-width="2"/>
+        <!-- 창문들 -->
+        <rect x="60" y="80" width="80" height="50" rx="6" fill="#0a1520" stroke="#1e3a4a" stroke-width="1.5"/>
+        <rect x="160" y="80" width="80" height="50" rx="6" fill="#0a1520" stroke="#1e3a4a" stroke-width="1.5"/>
+        <rect x="260" y="80" width="80" height="50" rx="6" fill="#0a1520" stroke="#1e3a4a" stroke-width="1.5"/>
+        <rect x="380" y="80" width="80" height="50" rx="6" fill="#0a1520" stroke="#1e3a4a" stroke-width="1.5"/>
+        <rect x="480" y="80" width="80" height="50" rx="6" fill="#0a1520" stroke="#1e3a4a" stroke-width="1.5"/>
+        <rect x="580" y="80" width="80" height="50" rx="6" fill="#0a1520" stroke="#1e3a4a" stroke-width="1.5"/>
+        <!-- 좌석들 -->
+        <rect x="70" y="160" width="50" height="70" rx="8" fill="#1a3040" stroke="#26c6da" stroke-width="1"/>
+        <rect x="140" y="160" width="50" height="70" rx="8" fill="#1a3040" stroke="#1e3a4a" stroke-width="1"/>
+        <rect x="210" y="160" width="50" height="70" rx="8" fill="#1a3040" stroke="#1e3a4a" stroke-width="1"/>
+        <rect x="280" y="160" width="50" height="70" rx="8" fill="#1a3040" stroke="#1e3a4a" stroke-width="1"/>
+        <rect x="70" y="250" width="50" height="70" rx="8" fill="#1a3040" stroke="#1e3a4a" stroke-width="1"/>
+        <rect x="140" y="250" width="50" height="70" rx="8" fill="#1a3040" stroke="#26c6da" stroke-width="1" stroke-dasharray="4"/>
+        <rect x="210" y="250" width="50" height="70" rx="8" fill="#1a3040" stroke="#1e3a4a" stroke-width="1"/>
+        <rect x="280" y="250" width="50" height="70" rx="8" fill="#1a3040" stroke="#1e3a4a" stroke-width="1"/>
+        <!-- 태블릿 거치 위치 -->
+        <rect x="370" y="140" width="120" height="190" rx="12" fill="#006064" stroke="#26c6da" stroke-width="2"/>
+        <rect x="380" y="152" width="100" height="160" rx="8" fill="#030a0e"/>
+        <!-- 태블릿 화면 내용 -->
+        <line x1="390" y1="232" x2="470" y2="232" stroke="rgba(178,235,242,.6)" stroke-width="1.5"/>
+        <circle cx="430" cy="232" r="5" fill="#b2ebf2" opacity=".8"/>
+        <text x="430" y="318" text-anchor="middle" fill="#4dd0e1" font-size="11" font-family="sans-serif">태블릿</text>
+        <!-- 노트북 -->
+        <rect x="520" y="200" width="130" height="90" rx="8" fill="#1a3040" stroke="#00838f" stroke-width="1.5"/>
+        <rect x="528" y="208" width="114" height="74" rx="4" fill="#030a0e"/>
+        <rect x="510" y="290" width="150" height="8" rx="4" fill="#1a3040" stroke="#00838f" stroke-width="1"/>
+        <text x="585" y="318" text-anchor="middle" fill="#4dd0e1" font-size="11" font-family="sans-serif">노트북(서버)</text>
+        <!-- 피험자 아이콘 (좌석 1) -->
+        <circle cx="95" cy="175" r="12" fill="#26c6da" opacity=".8"/>
+        <line x1="95" y1="187" x2="95" y2="215" stroke="#26c6da" stroke-width="3" opacity=".6"/>
+        <text x="95" y="240" text-anchor="middle" fill="#4dd0e1" font-size="10" font-family="sans-serif">피험자</text>
+        <!-- 연구자 아이콘 -->
+        <circle cx="165" cy="265" r="12" fill="#80cbc4" opacity=".6"/>
+        <line x1="165" y1="277" x2="165" y2="305" stroke="#80cbc4" stroke-width="3" opacity=".5"/>
+        <text x="165" y="328" text-anchor="middle" fill="#80cbc4" font-size="10" font-family="sans-serif">연구자</text>
+        <!-- 휴대폰 위치 -->
+        <rect x="320" y="195" width="28" height="50" rx="5" fill="#006064" stroke="#26c6da" stroke-width="1.5"/>
+        <rect x="323" y="200" width="22" height="38" rx="3" fill="#030a0e"/>
+        <text x="334" y="262" text-anchor="middle" fill="#4dd0e1" font-size="10" font-family="sans-serif">폰</text>
+        <!-- 연결선 -->
+        <path d="M 348 220 Q 360 220 370 220" stroke="#26c6da" stroke-width="1.5" fill="none" stroke-dasharray="4" opacity=".6"/>
+        <path d="M 490 245 Q 510 245 520 245" stroke="#00838f" stroke-width="1.5" fill="none" stroke-dasharray="4" opacity=".6"/>
+        <!-- 방향 표시 -->
+        <polygon points="690,210 710,200 710,220" fill="#37474f"/>
+        <text x="650" y="210" fill="#37474f" font-size="11" font-family="sans-serif">진행방향</text>
+        <!-- 범례 -->
+        <rect x="40" y="340" width="10" height="10" fill="#26c6da" rx="2"/>
+        <text x="55" y="350" fill="#80cbc4" font-size="10" font-family="sans-serif">피험자 착석</text>
+        <rect x="140" y="340" width="10" height="10" fill="#006064" rx="2"/>
+        <text x="155" y="350" fill="#80cbc4" font-size="10" font-family="sans-serif">실험 장비</text>
+        <rect x="250" y="340" width="10" height="10" fill="#80cbc4" rx="2"/>
+        <text x="265" y="350" fill="#80cbc4" font-size="10" font-family="sans-serif">연구자</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SLIDE 05 — 측정 원리 ══ -->
+<div class="slide" data-idx="4">
+  <div class="slide-header">
+    <div class="num">04 — 측정 원리</div>
+    <h2>색채심리학 기반 앰비언트 설계</h2>
+    <p>가속도 → 색조(Hue) 매핑 전략과 멀미 저감 근거</p>
+  </div>
+  <div class="slide-body">
+    <div class="principle-grid">
+      <div class="principle-card">
+        <h3>색조(Hue) 변화 전략</h3>
+        <p>기본 사이언(187°)에서 좌우 이동 강도에 따라 색조를 이동시켜 전정기관 신호와 시각 신호를 일치시킵니다.</p>
+        <div class="color-strip">
+          <div style="background:hsl(168,88%,38%)" title="좌 강함"></div>
+          <div style="background:hsl(175,90%,40%)" title="좌 약함"></div>
+          <div style="background:hsl(181,92%,34%)"></div>
+          <div style="background:hsl(187,95%,32%)" title="기본"></div>
+          <div style="background:hsl(193,95%,34%)"></div>
+          <div style="background:hsl(200,95%,38%)" title="우 약함"></div>
+          <div style="background:hsl(208,90%,42%)" title="우 강함"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--dim)">
+          <span>← 좌회전 (168°)</span>
+          <span>기본 (187°)</span>
+          <span>우회전 (208°) →</span>
+        </div>
+      </div>
+      <div class="principle-card">
+        <h3>가감속별 밝기(Lightness) 변화</h3>
+        <div class="timeline">
+          <div class="tl-row">
+            <div class="tl-state">등속</div>
+            <div class="tl-bar-wrap"><div class="tl-bar" style="width:50%;background:#26c6da"></div></div>
+            <div class="tl-val">L 32%</div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-state">가속</div>
+            <div class="tl-bar-wrap"><div class="tl-bar" style="width:30%;background:#00838f"></div></div>
+            <div class="tl-val">L 24%</div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-state">감속</div>
+            <div class="tl-bar-wrap"><div class="tl-bar" style="width:70%;background:#4dd0e1"></div></div>
+            <div class="tl-val">L 40%</div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-state">정지</div>
+            <div class="tl-bar-wrap"><div class="tl-bar" style="width:50%;background:#26c6da;animation:breathe 6.5s infinite"></div></div>
+            <div class="tl-val">Pulse</div>
+          </div>
+        </div>
+        <p style="margin-top:10px;font-size:.75rem">⚡ 전기버스는 엔진 진동이 없어 좌우 가속도와 가감속이 주요 멀미 유발 인자입니다.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SLIDE 06 — 피험자 수행 절차 ══ -->
+<div class="slide" data-idx="5">
+  <div class="slide-header">
+    <div class="num">05 — 피험자 수행 장면</div>
+    <h2>실험 진행 절차</h2>
+    <p>피험자 1인 기준 실험 단계별 흐름</p>
+  </div>
+  <div class="slide-body">
+    <div class="procedure">
+      <div class="proc-row">
+        <div class="proc-num">1</div>
+        <div class="proc-body">
+          <h4>사전 설문 (SSQ 측정)</h4>
+          <p>탑승 전 Simulator Sickness Questionnaire 기초값 측정 — 오심, 어지러움, 시각 피로 항목</p>
+        </div>
+        <div class="proc-badge">5분</div>
+      </div>
+      <div class="proc-row">
+        <div class="proc-num">2</div>
+        <div class="proc-body">
+          <h4>기기 셋업 확인</h4>
+          <p>태블릿 앰비언트 화면 정상 출력 확인 / 휴대폰 센서 연결 확인 / 엔진음 볼륨 조절</p>
+        </div>
+        <div class="proc-badge">3분</div>
+      </div>
+      <div class="proc-row">
+        <div class="proc-num">3</div>
+        <div class="proc-body">
+          <h4>주행 실험 (앰비언트 ON/OFF 교차)</h4>
+          <p>동일 노선 2회 반복 — 1회차: 앰비언트 없음(대조군) / 2회차: 앰비언트 활성화(실험군). 순서 카운터밸런싱 적용</p>
+        </div>
+        <div class="proc-badge">15분 × 2</div>
+      </div>
+      <div class="proc-row">
+        <div class="proc-num">4</div>
+        <div class="proc-body">
+          <h4>사후 설문 및 HRV 수집</h4>
+          <p>주행 직후 SSQ 재측정 + 심박수 변이(HRV) 기록. CSV 데이터 자동 저장</p>
+        </div>
+        <div class="proc-badge">5분</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SLIDE 07 — 사진 업로드 ══ -->
+<div class="slide" data-idx="6">
+  <div class="slide-header">
+    <div class="num">06 — 현장 사진</div>
+    <h2>실험 현장 기록</h2>
+    <p>각 슬롯을 클릭하여 현장 사진을 직접 업로드하세요</p>
+  </div>
+  <div class="slide-body">
+    <div class="photo-grid">
+      <div class="photo-slot" id="ps1">
+        <div class="icon">📷</div>
+        <div class="label">실험 현장 전경</div>
+        <input type="file" accept="image/*" onchange="loadPhoto(this,'ps1')"/>
+        <img id="ps1-img"/>
+      </div>
+      <div class="photo-slot" id="ps2">
+        <div class="icon">📱</div>
+        <div class="label">휴대폰 센서 화면</div>
+        <input type="file" accept="image/*" onchange="loadPhoto(this,'ps2')"/>
+        <img id="ps2-img"/>
+      </div>
+      <div class="photo-slot" id="ps3">
+        <div class="icon">🖥️</div>
+        <div class="label">태블릿 앰비언트 화면</div>
+        <input type="file" accept="image/*" onchange="loadPhoto(this,'ps3')"/>
+        <img id="ps3-img"/>
+      </div>
+      <div class="photo-slot" id="ps4">
+        <div class="icon">💻</div>
+        <div class="label">모니터링 대시보드</div>
+        <input type="file" accept="image/*" onchange="loadPhoto(this,'ps4')"/>
+        <img id="ps4-img"/>
+      </div>
+      <div class="photo-slot" id="ps5">
+        <div class="icon">🚌</div>
+        <div class="label">버스 내부 장비 배치</div>
+        <input type="file" accept="image/*" onchange="loadPhoto(this,'ps5')"/>
+        <img id="ps5-img"/>
+      </div>
+      <div class="photo-slot" id="ps6">
+        <div class="icon">👤</div>
+        <div class="label">피험자 수행 장면</div>
+        <input type="file" accept="image/*" onchange="loadPhoto(this,'ps6')"/>
+        <img id="ps6-img"/>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SLIDE 08 — 데이터 결과 ══ -->
+<div class="slide" data-idx="7">
+  <div class="slide-header">
+    <div class="num">07 — 측정 결과</div>
+    <h2>데이터 수집 결과 요약</h2>
+    <p>CSV 기록 기반 센서 분석 및 SSQ 비교 (실험 후 업데이트)</p>
+  </div>
+  <div class="slide-body">
+    <div class="result-layout">
+      <div class="result-panel">
+        <h3>SSQ 멀미 지수 비교 (대조군 vs 실험군)</h3>
+        <div class="ssq-bars">
+          <div class="ssq-row">
+            <div class="ssq-label">오심</div>
+            <div class="ssq-bar-wrap">
+              <div class="ssq-bar" style="width:62%;background:#ef5350;opacity:.7"></div>
+              <div class="ssq-bar" style="width:38%;background:#26c6da;opacity:.8"></div>
+            </div>
+            <div class="ssq-val">↓ 38%</div>
+          </div>
+          <div class="ssq-row">
+            <div class="ssq-label">어지러움</div>
+            <div class="ssq-bar-wrap">
+              <div class="ssq-bar" style="width:55%;background:#ef5350;opacity:.7"></div>
+              <div class="ssq-bar" style="width:32%;background:#26c6da;opacity:.8"></div>
+            </div>
+            <div class="ssq-val">↓ 42%</div>
+          </div>
+          <div class="ssq-row">
+            <div class="ssq-label">시각피로</div>
+            <div class="ssq-bar-wrap">
+              <div class="ssq-bar" style="width:48%;background:#ef5350;opacity:.7"></div>
+              <div class="ssq-bar" style="width:30%;background:#26c6da;opacity:.8"></div>
+            </div>
+            <div class="ssq-val">↓ 37%</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:10px;font-size:.72rem">
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:#ef5350;border-radius:2px;display:inline-block;opacity:.7"></span>대조군</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:#26c6da;border-radius:2px;display:inline-block;opacity:.8"></span>실험군 (앰비언트)</span>
+        </div>
+        <p style="font-size:.7rem;color:#37474f;margin-top:8px">※ 예시 데이터 — 실험 후 실제 값으로 교체</p>
+      </div>
+      <div class="result-panel">
+        <h3>가속도 데이터 통계 (CSV 기반)</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+          <div style="background:#030a0e;border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:.65rem;color:#4dd0e1;margin-bottom:4px">평균 좌우 가속도</div>
+            <div style="font-size:1.4rem;font-weight:700;color:var(--text)">0.28</div>
+            <div style="font-size:.65rem;color:var(--dim)">정규화값</div>
+          </div>
+          <div style="background:#030a0e;border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:.65rem;color:#4dd0e1;margin-bottom:4px">최대 RPM</div>
+            <div style="font-size:1.4rem;font-weight:700;color:var(--text)">4,280</div>
+            <div style="font-size:.65rem;color:var(--dim)">가속 구간</div>
+          </div>
+          <div style="background:#030a0e;border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:.65rem;color:#4dd0e1;margin-bottom:4px">측정 시간</div>
+            <div style="font-size:1.4rem;font-weight:700;color:var(--text)">15분</div>
+            <div style="font-size:.65rem;color:var(--dim)">1회 주행</div>
+          </div>
+          <div style="background:#030a0e;border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:.65rem;color:#4dd0e1;margin-bottom:4px">샘플링</div>
+            <div style="font-size:1.4rem;font-weight:700;color:var(--text)">30Hz</div>
+            <div style="font-size:.65rem;color:var(--dim)">초당 30회</div>
+          </div>
+        </div>
+        <p style="font-size:.7rem;color:#37474f;margin-top:10px">※ 실험 후 monitor 페이지에서 CSV 다운로드 → 값 업데이트</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SLIDE 09 — 비하인드 ══ -->
+<div class="slide" data-idx="8">
+  <div class="slide-header">
+    <div class="num">08 — 비하인드 기록</div>
+    <h2>팀 활동 & 비하인드 사진</h2>
+    <p>슬롯을 클릭하여 비하인드 사진을 업로드하세요</p>
+  </div>
+  <div class="slide-body">
+    <div class="behind-grid">
+      <div class="behind-slot" id="bs1">
+        <div class="slot-icon">🔧</div>
+        <div class="slot-label">장비 세팅 준비 중<br>비하인드</div>
+        <input type="file" accept="image/*" onchange="loadPhoto(this,'bs1')"/>
+        <img id="bs1-img"/>
+      </div>
+      <div class="behind-slot" id="bs2">
+        <div class="slot-icon">👥</div>
+        <div class="slot-label">팀 활동 사진<br>현장 미팅</div>
+        <input type="file" accept="image/*" onchange="loadPhoto(this,'bs2')"/>
+        <img id="bs2-img"/>
+      </div>
+      <div class="behind-slot" id="bs3">
+        <div class="slot-icon">🚌</div>
+        <div class="slot-label">버스 탑승 준비<br>현장 이동</div>
+        <input type="file" accept="image/*" onchange="loadPhoto(this,'bs3')"/>
+        <img id="bs3-img"/>
+      </div>
+      <div class="behind-slot" id="bs4">
+        <div class="slot-icon">📊</div>
+        <div class="slot-label">데이터 분석 중<br>실험 직후</div>
+        <input type="file" accept="image/*" onchange="loadPhoto(this,'bs4')"/>
+        <img id="bs4-img"/>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SLIDE 10 — 마무리 ══ -->
+<div class="slide s10" data-idx="9">
+  <h2>실험 기록 <span>완료</span></h2>
+  <p class="sub">전기버스 환경에서의 사이언 앰비언트 시스템 멀미 저감 효과 검증 — v1.0 현장 기록 아카이브</p>
+  <div class="tag-list">
+    <span class="tag-item">전정기관 · 시각 일치</span>
+    <span class="tag-item">사이언 490~520nm</span>
+    <span class="tag-item">칼만 필터</span>
+    <span class="tag-item">Web Audio API</span>
+    <span class="tag-item">가상 엔진음</span>
+    <span class="tag-item">Python FastAPI</span>
+    <span class="tag-item">WebSocket 30Hz</span>
+    <span class="tag-item">CSV 데이터 수집</span>
+    <span class="tag-item">SSQ 측정</span>
+    <span class="tag-item">Cloudflare Tunnel</span>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- 네비게이션 -->
+<div class="nav">
+  <button id="prevBtn" onclick="go(-1)">◀</button>
+  <div class="dots" id="dots"></div>
+  <button id="nextBtn" onclick="go(1)">▶</button>
+  <span class="page" id="pageNum">1 / 10</span>
+</div>
+
+<script>
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+let cur = 0;
+
+// 도트 생성
+const dotsEl = document.getElementById('dots');
+slides.forEach((_,i)=>{
+  const d = document.createElement('div');
+  d.className = 'dot' + (i===0?' on':'');
+  d.onclick = ()=>goTo(i);
+  dotsEl.appendChild(d);
+});
+
+function goTo(n){
+  slides[cur].classList.remove('active');
+  dotsEl.children[cur].classList.remove('on');
+  cur = Math.max(0, Math.min(total-1, n));
+  slides[cur].classList.add('active');
+  dotsEl.children[cur].classList.add('on');
+  document.getElementById('pageNum').textContent = (cur+1)+' / '+total;
+}
+function go(d){ goTo(cur+d); }
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown') go(1);
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp') go(-1);
+});
+
+// 사진 업로드
+function loadPhoto(input, slotId){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById(slotId+'-img');
+    img.src = e.target.result;
+    document.getElementById(slotId).classList.add('has-img');
+  };
+  reader.readAsDataURL(file);
+}
+</script>
+</body>
+</html>
