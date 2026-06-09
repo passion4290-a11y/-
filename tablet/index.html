@@ -367,6 +367,11 @@
     <div class="hud-row">
       <span class="hud-label" id="hudState">—</span>
     </div>
+    <div class="hud-row">
+      <button id="muteBtn" style="background:rgba(13,27,36,.85);border:1px solid var(--border);
+        color:#80cbc4;border-radius:8px;padding:5px 10px;font-size:.7rem;cursor:pointer;
+        pointer-events:auto;letter-spacing:.04em;">🔊 엔진음 켜짐</button>
+    </div>
   </div>
 
   <!-- 데이터 로그 -->
@@ -630,6 +635,107 @@
     right:   '우 회전 →',
   };
 
+  // ════════════════════════════════════════════════════════
+  // 가상 엔진음 (Web Audio API)
+  //  - RPM → 기본 주파수 (오실레이터 2개: sawtooth + square 하모닉)
+  //  - intensity → 마스터 볼륨
+  //  - 저역 통과 필터로 부드러운 엔진 질감
+  // ════════════════════════════════════════════════════════
+  const engineSound = (() => {
+    let ctx = null;
+    let osc1, osc2, subOsc;     // 메인 + 하모닉 + 서브베이스
+    let filter, masterGain;
+    let lfo, lfoGain;           // 엔진 진동(럼블)용 저주파
+    let started = false;
+
+    let targetRpm = 800;
+    let targetVol = 0.0;
+
+    function rpmToFreq(rpm) {
+      // RPM을 가청 기본 주파수로 매핑 (800rpm≈45Hz, 7200rpm≈220Hz)
+      return 45 + (rpm - 800) / (7200 - 800) * (220 - 45);
+    }
+
+    function start() {
+      if (started) return;
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+      masterGain = ctx.createGain();
+      masterGain.gain.value = 0.0001;
+      masterGain.connect(ctx.destination);
+
+      filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 900;
+      filter.Q.value = 4;
+      filter.connect(masterGain);
+
+      // 메인 엔진음 (톱니파)
+      osc1 = ctx.createOscillator();
+      osc1.type = 'sawtooth';
+      const g1 = ctx.createGain(); g1.gain.value = 0.6;
+      osc1.connect(g1); g1.connect(filter);
+
+      // 하모닉 (사각파, 한 옥타브 위)
+      osc2 = ctx.createOscillator();
+      osc2.type = 'square';
+      const g2 = ctx.createGain(); g2.gain.value = 0.18;
+      osc2.connect(g2); g2.connect(filter);
+
+      // 서브 베이스 (한 옥타브 아래)
+      subOsc = ctx.createOscillator();
+      subOsc.type = 'sine';
+      const gs = ctx.createGain(); gs.gain.value = 0.4;
+      subOsc.connect(gs); gs.connect(filter);
+
+      // 엔진 럼블(진동)을 위한 LFO → 필터 주파수 흔들기
+      lfo = ctx.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.value = 30;
+      lfoGain = ctx.createGain(); lfoGain.gain.value = 120;
+      lfo.connect(lfoGain); lfoGain.connect(filter.frequency);
+
+      osc1.start(); osc2.start(); subOsc.start(); lfo.start();
+      started = true;
+      update();
+    }
+
+    function setTarget(rpm, intensity) {
+      targetRpm = rpm;
+      targetVol = intensity;
+    }
+
+    // 부드러운 추종 (오디오 글리치 방지)
+    function update() {
+      if (!started) return;
+      const now = ctx.currentTime;
+      const freq = rpmToFreq(targetRpm);
+
+      osc1.frequency.setTargetAtTime(freq,       now, 0.08);
+      osc2.frequency.setTargetAtTime(freq * 2,   now, 0.08);
+      subOsc.frequency.setTargetAtTime(freq * 0.5, now, 0.08);
+
+      // LFO 속도도 RPM에 비례 (빠를수록 럼블 빨라짐)
+      lfo.frequency.setTargetAtTime(20 + (targetRpm / 7200) * 60, now, 0.1);
+
+      // 필터 개방도 = 가속할수록 밝은 소리
+      filter.frequency.setTargetAtTime(600 + targetVol * 2200, now, 0.1);
+
+      // 마스터 볼륨 (최대 0.25로 제한 — 귀 보호)
+      const vol = Math.max(0.0001, targetVol * 0.25);
+      masterGain.gain.setTargetAtTime(vol, now, 0.12);
+
+      requestAnimationFrame(update);
+    }
+
+    function toggleMute(muted) {
+      if (!started) return;
+      masterGain.gain.setTargetAtTime(muted ? 0.0001 : targetVol * 0.25, ctx.currentTime, 0.1);
+    }
+
+    return { start, setTarget, toggleMute, isStarted: () => started };
+  })();
+
   function onMotionData(data) {
     // 타겟 업데이트
     target.hue     = data.color.h;
@@ -645,11 +751,17 @@
     const dirLabel   = DIR_LABELS[data.direction]      || data.direction;
     hudState.textContent = dirLabel + ' · ' + stateLabel;
 
+    // 가상 엔진음 반영
+    if (data.engine) {
+      engineSound.setTarget(data.engine.rpm, data.engine.intensity);
+    }
+
     // 데이터 로그
     dataLog.innerHTML =
       `lateral: ${data.lateral.toFixed(4)} | forward: ${data.forward.toFixed(4)}<br>` +
       `dir: ${data.direction} | state: ${data.motion_state}<br>` +
-      `hsl: ${data.color.h} / ${data.color.s}% / ${data.color.l}%`;
+      `hsl: ${data.color.h} / ${data.color.s}% / ${data.color.l}%` +
+      (data.engine ? `<br>rpm: ${data.engine.rpm} | vol: ${data.engine.intensity} | ${data.engine.speed_kmh} km/h` : '');
   }
 
   function connect(addr) {
@@ -695,10 +807,32 @@
   document.getElementById('startBtn').addEventListener('click', () => {
     const addr = document.getElementById('serverAddr').value.trim();
     if (!addr) return;
+    engineSound.start();   // 사용자 제스처로 오디오 활성화
     setupPanel.classList.add('hidden');
     setTimeout(() => { setupPanel.style.display = 'none'; }, 500);
     connect(addr);
   });
+
+  // 자동 연결된 경우, 첫 터치/클릭 시 엔진음 활성화 (브라우저 오디오 정책)
+  function unlockAudioOnce() {
+    engineSound.start();
+    document.removeEventListener('click', unlockAudioOnce);
+    document.removeEventListener('touchstart', unlockAudioOnce);
+  }
+  document.addEventListener('click', unlockAudioOnce);
+  document.addEventListener('touchstart', unlockAudioOnce);
+
+  // 음소거 토글 버튼
+  let muted = false;
+  const muteBtn = document.getElementById('muteBtn');
+  if (muteBtn) {
+    muteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      muted = !muted;
+      engineSound.toggleMute(muted);
+      muteBtn.textContent = muted ? '🔇 엔진음 꺼짐' : '🔊 엔진음 켜짐';
+    });
+  }
 
   // 페이지를 서빙한 서버로 자동 연결 (ngrok 등 외부 주소 포함)
   window.addEventListener('load', () => {

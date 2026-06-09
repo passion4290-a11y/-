@@ -58,11 +58,18 @@ class MotionProcessor:
     # 움직임 감지 데드존 (잡음 제거)
     DEAD_ZONE = 0.08
 
+    # 가상 엔진음 파라미터
+    SPEED_MAX = 22.0        # 가상 최고 속도 (m/s, 약 80km/h)
+    FRICTION = 0.35         # 가속 입력 없을 때 감속 (m/s per s)
+    IDLE_RPM = 800          # 공회전 RPM
+    MAX_RPM = 7200          # 최대 RPM
+
     def __init__(self):
         self.kf_lateral = KalmanFilter1D(process_noise=0.05, measurement_noise=0.3)
         self.kf_forward = KalmanFilter1D(process_noise=0.05, measurement_noise=0.3)
         self.lateral_history: deque[float] = deque(maxlen=15)
         self.last_processed = 0.0
+        self.virtual_speed = 0.0   # 적분된 가상 속도 (m/s)
 
     def _apply_dead_zone(self, value: float, threshold: float) -> float:
         return 0.0 if abs(value) < threshold else value
@@ -117,6 +124,9 @@ class MotionProcessor:
         # 흐름 방향 (측방 이동 반대)
         flow_offset = -lateral_norm
 
+        # 가상 엔진음 계산
+        engine = self._compute_engine(forward_f, forward_norm, dt)
+
         return {
             "lateral": round(lateral_norm, 4),
             "forward": round(forward_norm, 4),
@@ -126,7 +136,43 @@ class MotionProcessor:
             "motion_state": motion_state,
             "color": {"h": hue, "s": saturation, "l": lightness},
             "flow_offset": round(flow_offset, 4),
+            "engine": engine,
             "timestamp": raw.get("timestamp", now * 1000),
+        }
+
+    def _compute_engine(self, forward_acc: float, forward_norm: float, dt: float) -> dict:
+        """
+        전후 가속도를 적분해 가상 속도를 추정하고,
+        속도 + 가속(스로틀)을 합쳐 RPM / 엔진음 강도를 산출한다.
+        """
+        # dt 폭주 방지
+        dt = max(0.001, min(0.1, dt))
+
+        # 가속도 적분 → 가상 속도 (가속 입력 없으면 마찰로 감속)
+        self.virtual_speed += forward_acc * dt
+        self.virtual_speed -= self.FRICTION * dt
+        self.virtual_speed = max(0.0, min(self.SPEED_MAX, self.virtual_speed))
+
+        speed_norm = self.virtual_speed / self.SPEED_MAX            # 0~1
+        throttle = max(0.0, forward_norm)                          # 가속 시 양수
+
+        # RPM: 공회전 + 속도 기여 + 스로틀 기여
+        rpm = (
+            self.IDLE_RPM
+            + speed_norm * (self.MAX_RPM - self.IDLE_RPM) * 0.7
+            + throttle * (self.MAX_RPM - self.IDLE_RPM) * 0.3
+        )
+        rpm = max(self.IDLE_RPM, min(self.MAX_RPM, rpm))
+
+        # 엔진음 강도(볼륨): 공회전 기본 + 속도 + 스로틀
+        intensity = 0.12 + speed_norm * 0.55 + throttle * 0.5
+        intensity = max(0.0, min(1.0, intensity))
+
+        return {
+            "rpm": round(rpm),
+            "intensity": round(intensity, 4),
+            "speed_kmh": round(self.virtual_speed * 3.6, 1),
+            "throttle": round(throttle, 4),
         }
 
     def _compute_color(self, lateral: float, forward: float) -> tuple[int, int, int]:

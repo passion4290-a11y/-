@@ -219,6 +219,51 @@
     </div>
   </div>
 
+  <!-- 가상 엔진음 패널 (전체 폭) -->
+  <div class="panel" style="grid-column:1/-1">
+    <h2>가상 엔진음 (가속 연동)</h2>
+    <div style="display:grid;grid-template-columns:140px 1fr;gap:20px;align-items:center">
+      <!-- RPM 원형 게이지 -->
+      <div style="position:relative;width:140px;height:140px">
+        <svg viewBox="0 0 120 120" style="width:100%;height:100%;transform:rotate(135deg)">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="#0a1520" stroke-width="10"
+            stroke-dasharray="245 327" stroke-linecap="round"/>
+          <circle id="rpmArc" cx="60" cy="60" r="52" fill="none" stroke="#26c6da" stroke-width="10"
+            stroke-dasharray="0 327" stroke-linecap="round" style="transition:stroke-dasharray .15s,stroke .15s"/>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;
+          align-items:center;justify-content:center">
+          <div id="rpmVal" style="font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums">800</div>
+          <div style="font-size:.65rem;color:#37474f;letter-spacing:.1em">RPM</div>
+        </div>
+      </div>
+
+      <!-- 우측: 볼륨 미터 + 수치 -->
+      <div>
+        <div class="sensor-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+          <div class="sensor-cell">
+            <div class="lbl">엔진음 볼륨</div>
+            <div><span class="val" id="engVol" style="font-size:1.3rem">0</span><span class="unit">%</span></div>
+          </div>
+          <div class="sensor-cell">
+            <div class="lbl">가상 속도</div>
+            <div><span class="val" id="engSpeed" style="font-size:1.3rem">0.0</span><span class="unit">km/h</span></div>
+          </div>
+          <div class="sensor-cell">
+            <div class="lbl">스로틀</div>
+            <div><span class="val" id="engThrottle" style="font-size:1.3rem">0.000</span></div>
+          </div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-lbl">엔진음 강도 (볼륨)</div>
+          <div class="gauge-track">
+            <div class="gauge-fill r" id="volBar" style="left:0;width:0;background:linear-gradient(to right,#1de9b6,#ffb74d,#ff7043)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 하단: 데이터 로그 -->
   <div class="panel log-panel">
     <h2>이벤트 로그</h2>
@@ -300,6 +345,26 @@
     const DIR_LABELS = {neutral:'직진', left:'← 좌', right:'우 →'};
     const STATE_LABELS = {cruise:'등속', accelerating:'가속', braking:'감속/제동'};
 
+    // RPM 게이지: 원호 둘레 245 (270도 구간), 800~7200rpm 매핑
+    const RPM_ARC_LEN = 245;
+    function updateEngine(eng){
+      if(!eng) return;
+      const rpmNorm = Math.max(0, Math.min(1, (eng.rpm - 800) / (7200 - 800)));
+      const dash = rpmNorm * RPM_ARC_LEN;
+      const arc = document.getElementById('rpmArc');
+      arc.setAttribute('stroke-dasharray', `${dash} 327`);
+      // 고RPM일수록 색이 청록→주황으로 (시각 경고)
+      const hue = 187 - rpmNorm * 160;   // 187(cyan) → 27(orange)
+      arc.setAttribute('stroke', `hsl(${hue}, 90%, 50%)`);
+
+      document.getElementById('rpmVal').textContent      = eng.rpm;
+      document.getElementById('engVol').textContent      = Math.round(eng.intensity * 100);
+      document.getElementById('engSpeed').textContent    = eng.speed_kmh.toFixed(1);
+      document.getElementById('engThrottle').textContent = eng.throttle.toFixed(3);
+
+      document.getElementById('volBar').style.width = (eng.intensity * 100) + '%';
+    }
+
     function onMotion(d){
       document.getElementById('lateral').textContent = d.lateral.toFixed(3);
       document.getElementById('forward').textContent = d.forward.toFixed(3);
@@ -310,18 +375,22 @@
       updateEdges(d.lateral);
       updateHorizon(d.tilt_lr);
       setColor(d.color.h, d.color.s, d.color.l);
+      updateEngine(d.engine);
 
       document.getElementById('bDir').textContent    = '방향: ' + (DIR_LABELS[d.direction]||d.direction);
       document.getElementById('bMotion').textContent = '상태: ' + (STATE_LABELS[d.motion_state]||d.motion_state);
       document.getElementById('bFlow').textContent   = '흐름: ' + d.flow_offset.toFixed(3);
 
-      // 기록
+      // 기록 (엔진 데이터 포함)
+      const e = d.engine || {};
       recordedData.push({
         time: Date.now(),
         lateral: d.lateral, forward: d.forward,
         tilt_lr: d.tilt_lr, tilt_fb: d.tilt_fb,
         direction: d.direction, motion_state: d.motion_state,
         hue: d.color.h, sat: d.color.s, lit: d.color.l,
+        rpm: e.rpm ?? '', engine_vol: e.intensity ?? '',
+        speed_kmh: e.speed_kmh ?? '', throttle: e.throttle ?? '',
       });
     }
 
@@ -367,9 +436,9 @@
     // CSV 다운로드
     document.getElementById('dlBtn').addEventListener('click', () => {
       if(!recordedData.length){ alert('기록된 데이터가 없습니다.'); return; }
-      const header = 'time,lateral,forward,tilt_lr,tilt_fb,direction,motion_state,hue,sat,lit\n';
+      const header = 'time,lateral,forward,tilt_lr,tilt_fb,direction,motion_state,hue,sat,lit,rpm,engine_vol,speed_kmh,throttle\n';
       const rows = recordedData.map(r =>
-        `${r.time},${r.lateral},${r.forward},${r.tilt_lr},${r.tilt_fb},${r.direction},${r.motion_state},${r.hue},${r.sat},${r.lit}`
+        `${r.time},${r.lateral},${r.forward},${r.tilt_lr},${r.tilt_fb},${r.direction},${r.motion_state},${r.hue},${r.sat},${r.lit},${r.rpm},${r.engine_vol},${r.speed_kmh},${r.throttle}`
       ).join('\n');
       const blob = new Blob([header + rows], {type:'text/csv'});
       const a = document.createElement('a');
